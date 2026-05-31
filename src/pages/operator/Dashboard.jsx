@@ -48,7 +48,8 @@ function PropertyProfileTab() {
   const [expanded, setExpanded] = useState(null)
 
   useEffect(() => {
-    supabase.from('Properties').select('*').then(({ data }) => {
+    supabase.from('Properties').select('*').then(({ data, error }) => {
+      if (error) console.error('Properties error:', error)
       setProperties(data || [])
       setLoading(false)
     })
@@ -66,21 +67,18 @@ function PropertyProfileTab() {
               <div style={{ fontWeight: 600, fontSize: 16, marginBottom: 4 }}>{p.name}</div>
               <div style={{ fontSize: 13, color: '#888', marginBottom: 8 }}>{p.address}</div>
               <div style={{ fontSize: 12, color: '#aaa' }}>
-                {p.bedrooms} bedroom{p.bedrooms !== 1 ? 's' : ''} · Next check-in: {p.next_checkin ? new Date(p.next_checkin).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Not set'}
+                {p.bedroom} bedroom{p.bedroom !== 1 ? 's' : ''} · Next check-in: {p.next_checkin ? new Date(p.next_checkin).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Not set'}
               </div>
             </div>
             <StatusBadge status={p.readiness_status} />
           </div>
           <ReadinessBar percent={p.readiness_percent || 0} />
-
-          {/* Knowledge Base toggle */}
           <button
             onClick={() => setExpanded(expanded === p.id ? null : p.id)}
             style={{ marginTop: 12, background: 'none', border: '1px solid #e0e0e0', borderRadius: 8,
               padding: '6px 12px', fontSize: 13, color: '#555', cursor: 'pointer', width: '100%', textAlign: 'left' }}>
             {expanded === p.id ? '▲ Hide Knowledge Base' : '▼ View Knowledge Base'}
           </button>
-
           {expanded === p.id && (
             <div style={{ marginTop: 10, background: '#f7f7f7', borderRadius: 8, padding: 14 }}>
               <div style={{ fontSize: 12, fontWeight: 600, color: '#888', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Knowledge Base</div>
@@ -127,6 +125,8 @@ function VendorDirectoryTab() {
       supabase.from('Vendors').select('*'),
       supabase.from('Cleaners').select('*'),
     ]).then(([vRes, cRes]) => {
+      if (vRes.error) console.error('Vendors error:', vRes.error)
+      if (cRes.error) console.error('Cleaners error:', cRes.error)
       setVendors(vRes.data || [])
       setCleaners(cRes.data || [])
       setLoading(false)
@@ -199,9 +199,11 @@ function IssuesTab() {
 
   useEffect(() => {
     Promise.all([
-      supabase.from('issues').select('*, properties(name)').neq('status', 'Closed'),
+      supabase.from('issues').select('*').neq('status', 'Closed'),
       supabase.from('Vendors').select('*'),
     ]).then(([issuesRes, vendorsRes]) => {
+      if (issuesRes.error) console.error('Issues error:', issuesRes.error)
+      if (vendorsRes.error) console.error('Vendors error:', vendorsRes.error)
       setIssues(issuesRes.data || [])
       setVendors(vendorsRes.data || [])
       setLoading(false)
@@ -234,7 +236,6 @@ function IssuesTab() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
                   <div>
                     <div style={{ fontWeight: 600, marginBottom: 4 }}>{issue.category}</div>
-                    <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>{issue.properties?.name}</div>
                     <div style={{ fontSize: 13, color: '#555' }}>{issue.description}</div>
                   </div>
                   <span className={`badge badge-${(issue.status || 'open').toLowerCase().replace(' ', '')}`}>{issue.status || 'Open'}</span>
@@ -262,7 +263,8 @@ function InventoryTab() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    supabase.from('restock').select('*, properties(name)').eq('needs_restock', true).then(({ data }) => {
+    supabase.from('restock').select('*').eq('needs_restock', true).then(({ data, error }) => {
+      if (error) console.error('Restock error:', error)
       setItems(data || [])
       setLoading(false)
     })
@@ -271,27 +273,13 @@ function InventoryTab() {
   if (loading) return <div className="empty-state">Loading inventory...</div>
   if (!items.length) return <div className="empty-state">No items flagged for restock. All stocked up.</div>
 
-  const byProperty = items.reduce((acc, item) => {
-    const name = item.properties?.name || 'Unknown'
-    if (!acc[name]) acc[name] = []
-    acc[name].push(item)
-    return acc
-  }, {})
-
   return (
-    <div style={{ display: 'grid', gap: 16 }}>
-      {Object.entries(byProperty).map(([property, items]) => (
-        <div key={property}>
-          <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 8, color: '#444' }}>{property}</div>
-          <div style={{ display: 'grid', gap: 6 }}>
-            {items.map(item => (
-              <div key={item.id} className="card" style={{ padding: '12px 16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontWeight: 500 }}>{item.item_name}</span>
-                  <span style={{ fontSize: 13, color: '#dc2626' }}>{item.current_quantity} / {item.minimum_quantity} min</span>
-                </div>
-              </div>
-            ))}
+    <div style={{ display: 'grid', gap: 6 }}>
+      {items.map(item => (
+        <div key={item.id} className="card" style={{ padding: '12px 16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontWeight: 500 }}>{item.item_name}</span>
+            <span style={{ fontSize: 13, color: '#dc2626' }}>{item.current_quantity} / {item.minimum_quantity} min</span>
           </div>
         </div>
       ))}
@@ -305,14 +293,15 @@ function ComplianceTab() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    supabase.from('compliance_documents').select('*, properties(name)').then(({ data }) => {
+    supabase.from('compliance_documents').select('*').then(({ data, error }) => {
+      if (error) console.error('Compliance error:', error)
       const enriched = (data || []).map(d => {
         const days = d.expiry_date ? Math.ceil((new Date(d.expiry_date) - new Date()) / (1000 * 60 * 60 * 24)) : null
-        let status = 'Valid'
+        let status = d.status || 'Valid'
         if (days === null) status = 'Missing'
         else if (days < 0) status = 'Expired'
         else if (days <= 30) status = 'Due Soon'
-        return { ...d, computed_status: status, days_remaining: days }
+        return { ...d, computed_status: status }
       })
       setDocs(enriched)
       setLoading(false)
@@ -340,7 +329,7 @@ function ComplianceTab() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
                     <div style={{ fontWeight: 600, marginBottom: 4 }}>{doc.document_type}</div>
-                    <div style={{ fontSize: 13, color: '#888' }}>{doc.properties?.name}</div>
+                    {doc.notes && <div style={{ fontSize: 13, color: '#888' }}>{doc.notes}</div>}
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <ComplianceBadge status={doc.computed_status} />
