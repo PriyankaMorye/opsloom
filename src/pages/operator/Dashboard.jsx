@@ -48,7 +48,7 @@ function PropertyProfileTab() {
   const [expanded, setExpanded] = useState(null)
 
   useEffect(() => {
-    supabase.from('properties').select('*').then(({ data }) => {
+    supabase.from('Properties').select('*').then(({ data }) => {
       setProperties(data || [])
       setLoading(false)
     })
@@ -124,8 +124,8 @@ function VendorDirectoryTab() {
 
   useEffect(() => {
     Promise.all([
-      supabase.from('vendors').select('*'),
-      supabase.from('cleaners').select('*'),
+      supabase.from('Vendors').select('*'),
+      supabase.from('Cleaners').select('*'),
     ]).then(([vRes, cRes]) => {
       setVendors(vRes.data || [])
       setCleaners(cRes.data || [])
@@ -200,7 +200,7 @@ function IssuesTab() {
   useEffect(() => {
     Promise.all([
       supabase.from('issues').select('*, properties(name)').neq('status', 'Closed'),
-      supabase.from('vendors').select('*'),
+      supabase.from('Vendors').select('*'),
     ]).then(([issuesRes, vendorsRes]) => {
       setIssues(issuesRes.data || [])
       setVendors(vendorsRes.data || [])
