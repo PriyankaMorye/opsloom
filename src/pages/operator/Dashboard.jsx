@@ -3,22 +3,11 @@ import { supabase } from '../../lib/supabase'
 
 function NavTab({ label, active, onClick }) {
   return (
-    <button
-      onClick={onClick}
-      style={{
-        padding: '8px 16px',
-        borderRadius: 8,
-        fontSize: 14,
-        fontWeight: 500,
-        background: active ? '#0a0a0a' : 'transparent',
-        color: active ? '#fff' : '#666',
-        border: 'none',
-        cursor: 'pointer',
-        transition: 'all 0.15s',
-      }}
-    >
-      {label}
-    </button>
+    <button onClick={onClick} style={{
+      padding: '8px 16px', borderRadius: 8, fontSize: 14, fontWeight: 500,
+      background: active ? '#0a0a0a' : 'transparent',
+      color: active ? '#fff' : '#666', border: 'none', cursor: 'pointer', transition: 'all 0.15s',
+    }}>{label}</button>
   )
 }
 
@@ -38,21 +27,12 @@ function ReadinessBar({ percent }) {
 }
 
 function StatusBadge({ status }) {
-  const map = {
-    'Ready': 'badge-ready',
-    'At Risk': 'badge-atrisk',
-    'Not Ready': 'badge-notready',
-  }
+  const map = { 'Ready': 'badge-ready', 'At Risk': 'badge-atrisk', 'Not Ready': 'badge-notready' }
   return <span className={`badge ${map[status] || 'badge-notready'}`}>{status || 'Not Ready'}</span>
 }
 
 function SeverityBadge({ severity }) {
-  const map = {
-    'Critical': 'badge-critical',
-    'High': 'badge-high',
-    'Medium': 'badge-medium',
-    'Low': 'badge-low',
-  }
+  const map = { 'Critical': 'badge-critical', 'High': 'badge-high', 'Medium': 'badge-medium', 'Low': 'badge-low' }
   return <span className={`badge ${map[severity] || 'badge-low'}`}>{severity}</span>
 }
 
@@ -61,10 +41,11 @@ function ComplianceBadge({ status }) {
   return <span className={`badge ${map[status] || 'badge-duesoon'}`}>{status}</span>
 }
 
-// ── Properties Tab ────────────────────────────────────────────────────
-function PropertiesTab() {
+// ── Property Profile Tab ──────────────────────────────────────────────
+function PropertyProfileTab() {
   const [properties, setProperties] = useState([])
   const [loading, setLoading] = useState(true)
+  const [expanded, setExpanded] = useState(null)
 
   useEffect(() => {
     supabase.from('properties').select('*').then(({ data }) => {
@@ -74,11 +55,7 @@ function PropertiesTab() {
   }, [])
 
   if (loading) return <div className="empty-state">Loading properties...</div>
-  if (!properties.length) return (
-    <div className="empty-state">
-      No properties yet. Add your first property to get started.
-    </div>
-  )
+  if (!properties.length) return <div className="empty-state">No properties yet. Add your first property in Supabase to get started.</div>
 
   return (
     <div style={{ display: 'grid', gap: 12 }}>
@@ -89,14 +66,127 @@ function PropertiesTab() {
               <div style={{ fontWeight: 600, fontSize: 16, marginBottom: 4 }}>{p.name}</div>
               <div style={{ fontSize: 13, color: '#888', marginBottom: 8 }}>{p.address}</div>
               <div style={{ fontSize: 12, color: '#aaa' }}>
-                {p.bedrooms} bedroom{p.bedrooms !== 1 ? 's' : ''} · Next check-in: {p.next_checkin ? new Date(p.next_checkin).toLocaleDateString('en-GB') : 'Not set'}
+                {p.bedrooms} bedroom{p.bedrooms !== 1 ? 's' : ''} · Next check-in: {p.next_checkin ? new Date(p.next_checkin).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Not set'}
               </div>
             </div>
             <StatusBadge status={p.readiness_status} />
           </div>
           <ReadinessBar percent={p.readiness_percent || 0} />
+
+          {/* Knowledge Base toggle */}
+          <button
+            onClick={() => setExpanded(expanded === p.id ? null : p.id)}
+            style={{ marginTop: 12, background: 'none', border: '1px solid #e0e0e0', borderRadius: 8,
+              padding: '6px 12px', fontSize: 13, color: '#555', cursor: 'pointer', width: '100%', textAlign: 'left' }}>
+            {expanded === p.id ? '▲ Hide Knowledge Base' : '▼ View Knowledge Base'}
+          </button>
+
+          {expanded === p.id && (
+            <div style={{ marginTop: 10, background: '#f7f7f7', borderRadius: 8, padding: 14 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#888', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Knowledge Base</div>
+              <div style={{ display: 'grid', gap: 8 }}>
+                {p.access_code && (
+                  <div>
+                    <div style={{ fontSize: 11, color: '#aaa', marginBottom: 2 }}>Access code</div>
+                    <div style={{ fontSize: 15, fontWeight: 600, fontFamily: 'monospace' }}>{p.access_code}</div>
+                  </div>
+                )}
+                {p.linen_location && (
+                  <div>
+                    <div style={{ fontSize: 11, color: '#aaa', marginBottom: 2 }}>Linen location</div>
+                    <div style={{ fontSize: 14 }}>{p.linen_location}</div>
+                  </div>
+                )}
+                {p.appliance_notes && (
+                  <div>
+                    <div style={{ fontSize: 11, color: '#aaa', marginBottom: 2 }}>Appliance notes</div>
+                    <div style={{ fontSize: 14 }}>{p.appliance_notes}</div>
+                  </div>
+                )}
+                {!p.access_code && !p.linen_location && !p.appliance_notes && (
+                  <div style={{ fontSize: 13, color: '#aaa' }}>No knowledge base details added yet.</div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       ))}
+    </div>
+  )
+}
+
+// ── Vendor Directory Tab ──────────────────────────────────────────────
+function VendorDirectoryTab() {
+  const [vendors, setVendors] = useState([])
+  const [cleaners, setCleaners] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [activeSection, setActiveSection] = useState('vendors')
+
+  useEffect(() => {
+    Promise.all([
+      supabase.from('vendors').select('*'),
+      supabase.from('cleaners').select('*'),
+    ]).then(([vRes, cRes]) => {
+      setVendors(vRes.data || [])
+      setCleaners(cRes.data || [])
+      setLoading(false)
+    })
+  }, [])
+
+  const tradeColors = { Plumber: '#dbeafe', Electrician: '#fef9c3', Handyman: '#dcfce7', Laundry: '#f3e8ff', Other: '#f3f4f6' }
+  const tradeText   = { Plumber: '#1e40af', Electrician: '#854d0e', Handyman: '#166534', Laundry: '#6b21a8', Other: '#374151' }
+
+  if (loading) return <div className="empty-state">Loading vendor directory...</div>
+
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        <button onClick={() => setActiveSection('vendors')} style={{
+          padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer',
+          background: activeSection === 'vendors' ? '#0a0a0a' : '#f0f0f0',
+          color: activeSection === 'vendors' ? '#fff' : '#555', border: 'none',
+        }}>Vendors ({vendors.length})</button>
+        <button onClick={() => setActiveSection('cleaners')} style={{
+          padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer',
+          background: activeSection === 'cleaners' ? '#0a0a0a' : '#f0f0f0',
+          color: activeSection === 'cleaners' ? '#fff' : '#555', border: 'none',
+        }}>Cleaners ({cleaners.length})</button>
+      </div>
+
+      {activeSection === 'vendors' && (
+        <div style={{ display: 'grid', gap: 10 }}>
+          {!vendors.length && <div className="empty-state">No vendors added yet.</div>}
+          {vendors.map(v => (
+            <div key={v.id} className="card" style={{ padding: '14px 16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>{v.name}</div>
+                  <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{v.phone}</div>
+                  <div style={{ fontSize: 13, color: '#888' }}>{v.email}</div>
+                </div>
+                <span style={{ padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 500,
+                  background: tradeColors[v.trade] || tradeColors.Other,
+                  color: tradeText[v.trade] || tradeText.Other }}>
+                  {v.trade}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {activeSection === 'cleaners' && (
+        <div style={{ display: 'grid', gap: 10 }}>
+          {!cleaners.length && <div className="empty-state">No cleaners added yet.</div>}
+          {cleaners.map(c => (
+            <div key={c.id} className="card" style={{ padding: '14px 16px' }}>
+              <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>{c.name}</div>
+              <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{c.phone}</div>
+              <div style={{ fontSize: 13, color: '#888' }}>{c.email}</div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -127,8 +217,7 @@ function IssuesTab() {
   if (!issues.length) return <div className="empty-state">No open issues. All clear.</div>
 
   const grouped = ['Critical', 'High', 'Medium', 'Low'].map(sev => ({
-    severity: sev,
-    items: issues.filter(i => i.severity === sev),
+    severity: sev, items: issues.filter(i => i.severity === sev),
   })).filter(g => g.items.length > 0)
 
   return (
@@ -150,21 +239,12 @@ function IssuesTab() {
                   </div>
                   <span className={`badge badge-${(issue.status || 'open').toLowerCase().replace(' ', '')}`}>{issue.status || 'Open'}</span>
                 </div>
-                {issue.issue_photo_url && (
-                  <img src={issue.issue_photo_url} alt="Issue" style={{ width: '100%', maxHeight: 160, objectFit: 'cover', borderRadius: 8, marginBottom: 10 }} />
-                )}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ fontSize: 13, color: '#888' }}>Assign to:</span>
-                  <select
-                    className="input-field"
-                    style={{ flex: 1, padding: '6px 10px', fontSize: 13 }}
-                    value={issue.vendor_id || ''}
-                    onChange={e => assignVendor(issue.id, e.target.value)}
-                  >
+                  <select className="input-field" style={{ flex: 1, padding: '6px 10px', fontSize: 13 }}
+                    value={issue.vendor_id || ''} onChange={e => assignVendor(issue.id, e.target.value)}>
                     <option value="">Select vendor</option>
-                    {vendors.map(v => (
-                      <option key={v.id} value={v.id}>{v.name} — {v.trade}</option>
-                    ))}
+                    {vendors.map(v => <option key={v.id} value={v.id}>{v.name} — {v.trade}</option>)}
                   </select>
                 </div>
               </div>
@@ -176,8 +256,8 @@ function IssuesTab() {
   )
 }
 
-// ── Restock Tab ───────────────────────────────────────────────────────
-function RestockTab() {
+// ── Inventory Tab ─────────────────────────────────────────────────────
+function InventoryTab() {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -188,8 +268,8 @@ function RestockTab() {
     })
   }, [])
 
-  if (loading) return <div className="empty-state">Loading restock items...</div>
-  if (!items.length) return <div className="empty-state">No items need restocking. All good.</div>
+  if (loading) return <div className="empty-state">Loading inventory...</div>
+  if (!items.length) return <div className="empty-state">No items flagged for restock. All stocked up.</div>
 
   const byProperty = items.reduce((acc, item) => {
     const name = item.properties?.name || 'Unknown'
@@ -208,9 +288,7 @@ function RestockTab() {
               <div key={item.id} className="card" style={{ padding: '12px 16px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontWeight: 500 }}>{item.item_name}</span>
-                  <span style={{ fontSize: 13, color: '#dc2626' }}>
-                    {item.current_quantity} / {item.minimum_quantity} min
-                  </span>
+                  <span style={{ fontSize: 13, color: '#dc2626' }}>{item.current_quantity} / {item.minimum_quantity} min</span>
                 </div>
               </div>
             ))}
@@ -245,8 +323,7 @@ function ComplianceTab() {
   if (!docs.length) return <div className="empty-state">No compliance documents uploaded yet.</div>
 
   const grouped = ['Expired', 'Due Soon', 'Valid'].map(s => ({
-    status: s,
-    items: docs.filter(d => d.computed_status === s),
+    status: s, items: docs.filter(d => d.computed_status === s),
   })).filter(g => g.items.length > 0)
 
   return (
@@ -281,44 +358,40 @@ function ComplianceTab() {
   )
 }
 
-// ── Main Dashboard ─────────────────────────────────────────────────────
+// ── Main Dashboard ────────────────────────────────────────────────────
 export default function OperatorDashboard() {
-  const [tab, setTab] = useState('properties')
+  const [tab, setTab] = useState('property-profile')
 
   async function handleLogout() {
     await supabase.auth.signOut()
   }
 
   const tabs = [
-    { key: 'properties', label: 'Properties' },
+    { key: 'property-profile', label: 'Property Profile' },
+    { key: 'vendor-directory', label: 'Vendor Directory' },
     { key: 'issues', label: 'Issues' },
-    { key: 'restock', label: 'Restock' },
+    { key: 'inventory', label: 'Inventory' },
     { key: 'compliance', label: 'Compliance' },
   ]
 
   return (
     <div style={{ minHeight: '100vh', background: '#f7f7f7' }}>
-      {/* Header */}
-      <div className="page-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+      <div className="page-header" style={{ flexWrap: 'wrap', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <span style={{ fontWeight: 700, fontSize: 18, letterSpacing: '-0.5px' }}>OpsLoom</span>
-          <div style={{ display: 'flex', gap: 4 }}>
-            {tabs.map(t => (
-              <NavTab key={t.key} label={t.label} active={tab === t.key} onClick={() => setTab(t.key)} />
-            ))}
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+            {tabs.map(t => <NavTab key={t.key} label={t.label} active={tab === t.key} onClick={() => setTab(t.key)} />)}
           </div>
         </div>
-        <button className="btn-secondary" onClick={handleLogout} style={{ padding: '8px 16px' }}>
-          Sign out
-        </button>
+        <button className="btn-secondary" onClick={handleLogout} style={{ padding: '8px 16px' }}>Sign out</button>
       </div>
 
-      {/* Content */}
       <div className="page-body">
-        {tab === 'properties'  && <PropertiesTab />}
-        {tab === 'issues'      && <IssuesTab />}
-        {tab === 'restock'     && <RestockTab />}
-        {tab === 'compliance'  && <ComplianceTab />}
+        {tab === 'property-profile'  && <PropertyProfileTab />}
+        {tab === 'vendor-directory'  && <VendorDirectoryTab />}
+        {tab === 'issues'            && <IssuesTab />}
+        {tab === 'inventory'         && <InventoryTab />}
+        {tab === 'compliance'        && <ComplianceTab />}
       </div>
     </div>
   )
