@@ -258,7 +258,7 @@ function VendorDirectoryTab() {
           <button key={t} onClick={() => setTab(t)} style={{
             padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer',
             background: tab === t ? '#0a0a0a' : '#f0f0f0', color: tab === t ? '#fff' : '#555', border: 'none',
-          }}>{t.charAt(0).toUpperCase() + t.slice(1)} ({tab === 'vendors' ? vendors : tab === 'cleaners' ? cleaners : agencies}.length)</button>
+          }}>{t.charAt(0).toUpperCase() + t.slice(1)} ({(t === 'vendors' ? vendors : t === 'cleaners' ? cleaners : agencies).length})</button>
         ))}
       </div>
 
@@ -491,7 +491,7 @@ function InventoryTab() {
 
   useEffect(() => {
     Promise.all([
-      supabase.from('restock').select('*, Properties(name)'),
+      supabase.from('restock').select('*'),
       supabase.from('Properties').select('id, name'),
     ]).then(([r, p]) => {
       setItems(r.data || [])
@@ -535,7 +535,7 @@ function InventoryTab() {
             {filtered.map((item, i) => (
               <tr key={item.id} style={{ background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
                 <td style={{ padding: '10px 12px', borderBottom: '1px solid #f0f0f0', color: '#555' }}>
-                  {item.Properties?.name || '—'}
+                  {properties.find(p => p.id == item.property_id)?.name || '—'}
                 </td>
                 <td style={{ padding: '10px 12px', borderBottom: '1px solid #f0f0f0', fontWeight: 500 }}>
                   {item.item_name}
