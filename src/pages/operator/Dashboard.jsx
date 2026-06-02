@@ -78,6 +78,46 @@ function PropertyProfileTab() {
     p.address?.toLowerCase().includes(search.toLowerCase())
   )
 
+  // History view
+  if (showHistory) {
+    return (
+      <div>
+        <button onClick={() => setShowHistory(false)} style={{
+          background: 'none', border: '1px solid #e0e0e0', borderRadius: 8,
+          padding: '8px 16px', fontSize: 13, cursor: 'pointer', marginBottom: 16, color: '#555'
+        }}>← Back to open issues</button>
+        <div style={{ fontWeight: 600, marginBottom: 12 }}>Closed issues history ({closedIssues.length} total)</div>
+        {historyLoading && <div className="empty-state">Loading history...</div>}
+        {!historyLoading && !closedIssues.length && <div className="empty-state">No closed issues yet.</div>}
+        {!historyLoading && closedIssues.map(issue => (
+          <div key={issue.id} className="card" style={{ marginBottom: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+              <div style={{ fontWeight: 600 }}>{issue.category}</div>
+              <span className="badge badge-ready">Closed</span>
+            </div>
+            <div style={{ fontSize: 13, color: '#555', marginBottom: 6 }}>{issue.description}</div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 4 }}>
+              <SeverityBadge s={issue.severity} />
+              <span style={{ fontSize: 12, color: '#aaa' }}>{new Date(issue.created_at).toLocaleDateString('en-GB')}</span>
+            </div>
+            {issue.issue_photo_url && (
+              <div style={{ marginTop: 8 }}>
+                <div style={{ fontSize: 11, color: '#aaa', marginBottom: 4 }}>Issue photo</div>
+                <img src={issue.issue_photo_url} alt="Issue" style={{ width: '100%', maxHeight: 160, objectFit: 'cover', borderRadius: 8 }} />
+              </div>
+            )}
+            {issue.fix_photo_url && (
+              <div style={{ marginTop: 8 }}>
+                <div style={{ fontSize: 11, color: '#aaa', marginBottom: 4 }}>Fix photo</div>
+                <img src={issue.fix_photo_url} alt="Fix" style={{ width: '100%', maxHeight: 160, objectFit: 'cover', borderRadius: 8 }} />
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    )
+  }
+
   // Detail view
   if (selected) {
     const lastIssue = issues[0]
@@ -232,6 +272,10 @@ function VendorDirectoryTab() {
   const [agencies, setAgencies] = useState([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('vendors')
+  const [selected, setSelected] = useState(null)
+  const [selectedType, setSelectedType] = useState(null)
+  const [history, setHistory] = useState([])
+  const [historyLoading, setHistoryLoading] = useState(false)
 
   useEffect(() => {
     Promise.all([
@@ -246,10 +290,113 @@ function VendorDirectoryTab() {
     })
   }, [])
 
+  async function openVendor(v) {
+    setSelected(v)
+    setSelectedType('vendor')
+    setHistoryLoading(true)
+    const { data } = await supabase.from('issues').select('*').eq('vendor_id', v.id).order('created_at', { ascending: false })
+    setHistory(data || [])
+    setHistoryLoading(false)
+  }
+
+  async function openCleaner(c) {
+    setSelected(c)
+    setSelectedType('cleaner')
+    setHistoryLoading(true)
+    const { data } = await supabase.from('jobs').select('*').eq('cleaner_id', c.id).order('created_at', { ascending: false })
+    setHistory(data || [])
+    setHistoryLoading(false)
+  }
+
   const tradeColors = { Plumber: '#dbeafe', Electrician: '#fef9c3', Handyman: '#dcfce7', Laundry: '#f3e8ff', Other: '#f3f4f6' }
   const tradeText   = { Plumber: '#1e40af', Electrician: '#854d0e', Handyman: '#166534', Laundry: '#6b21a8', Other: '#374151' }
 
   if (loading) return <div className="empty-state">Loading...</div>
+
+  // Detail view — vendor history
+  if (selected && selectedType === 'vendor') {
+    return (
+      <div>
+        <button onClick={() => { setSelected(null); setSelectedType(null); }} style={{
+          background: 'none', border: '1px solid #e0e0e0', borderRadius: 8,
+          padding: '8px 16px', fontSize: 13, cursor: 'pointer', marginBottom: 16, color: '#555'
+        }}>← Back to vendors</button>
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 4 }}>{selected.name}</div>
+              <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{selected.phone}</div>
+              <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{selected.email}</div>
+              <div style={{ fontSize: 13, color: '#aaa' }}>
+                {selected.agency_name && selected.agency_name !== 'No agency' ? `Agency: ${selected.agency_name}` : 'No agency'}
+              </div>
+            </div>
+            <span style={{ padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 500,
+              background: tradeColors[selected.trade] || tradeColors.Other, color: tradeText[selected.trade] || tradeText.Other }}>
+              {selected.trade}
+            </span>
+          </div>
+        </div>
+        <div style={{ fontWeight: 600, marginBottom: 12 }}>Issue history ({history.length} total)</div>
+        {historyLoading && <div className="empty-state">Loading history...</div>}
+        {!historyLoading && !history.length && <div className="empty-state">No issues assigned to this vendor yet.</div>}
+        {!historyLoading && history.map(issue => (
+          <div key={issue.id} className="card" style={{ marginBottom: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+              <div style={{ fontWeight: 600 }}>{issue.category}</div>
+              <span className={`badge ${issue.status === 'Fixed' || issue.status === 'Closed' ? 'badge-ready' : 'badge-atrisk'}`}>{issue.status}</span>
+            </div>
+            <div style={{ fontSize: 13, color: '#555', marginBottom: 4 }}>{issue.description}</div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <span className={`badge badge-${issue.severity?.toLowerCase() || 'low'}`}>{issue.severity}</span>
+              <span style={{ fontSize: 12, color: '#aaa' }}>{new Date(issue.created_at).toLocaleDateString('en-GB')}</span>
+            </div>
+            {issue.fix_photo_url && (
+              <div style={{ marginTop: 8 }}>
+                <div style={{ fontSize: 11, color: '#aaa', marginBottom: 4 }}>Fix proof photo</div>
+                <img src={issue.fix_photo_url} alt="Fix" style={{ width: '100%', maxHeight: 160, objectFit: 'cover', borderRadius: 8 }} />
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  // Detail view — cleaner history
+  if (selected && selectedType === 'cleaner') {
+    return (
+      <div>
+        <button onClick={() => { setSelected(null); setSelectedType(null); }} style={{
+          background: 'none', border: '1px solid #e0e0e0', borderRadius: 8,
+          padding: '8px 16px', fontSize: 13, cursor: 'pointer', marginBottom: 16, color: '#555'
+        }}>← Back to cleaners</button>
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 4 }}>{selected.name}</div>
+          <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{selected.phone}</div>
+          <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{selected.email}</div>
+          <div style={{ fontSize: 13, color: '#aaa' }}>
+            {selected.agency_name && selected.agency_name !== 'No agency' ? `Agency: ${selected.agency_name}` : 'No agency'}
+          </div>
+        </div>
+        <div style={{ fontWeight: 600, marginBottom: 12 }}>Job history ({history.length} total)</div>
+        {historyLoading && <div className="empty-state">Loading history...</div>}
+        {!historyLoading && !history.length && <div className="empty-state">No jobs assigned to this cleaner yet.</div>}
+        {!historyLoading && history.map(job => (
+          <div key={job.id} className="card" style={{ marginBottom: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+              <div style={{ fontWeight: 600 }}>Job — {new Date(job.job_date).toLocaleDateString('en-GB')}</div>
+              <span className={`badge ${job.status === 'Complete' ? 'badge-ready' : job.status === 'In progress' ? 'badge-atrisk' : 'badge-notready'}`}>{job.status}</span>
+            </div>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+              <span style={{ fontSize: 13, color: '#888' }}>Readiness: <strong>{job.readiness_percent || 0}%</strong></span>
+              <span style={{ fontSize: 13, color: '#888' }}>Tasks: {job.completed_tasks || 0} / {job.total_tasks || 0}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    )
+  }
 
   return (
     <div>
@@ -266,7 +413,7 @@ function VendorDirectoryTab() {
         <div style={{ display: 'grid', gap: 10 }}>
           {!vendors.length && <div className="empty-state">No vendors added yet.</div>}
           {vendors.map(v => (
-            <div key={v.id} className="card" style={{ padding: '14px 16px' }}>
+            <div key={v.id} className="card" style={{ padding: '14px 16px', cursor: 'pointer' }} onClick={() => openVendor(v)}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>
                   <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>{v.name}</div>
@@ -276,10 +423,13 @@ function VendorDirectoryTab() {
                     {v.agency_name && v.agency_name !== 'No agency' ? `Agency: ${v.agency_name}` : 'No agency'}
                   </div>
                 </div>
-                <span style={{ padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 500,
-                  background: tradeColors[v.trade] || tradeColors.Other, color: tradeText[v.trade] || tradeText.Other }}>
-                  {v.trade}
-                </span>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+                  <span style={{ padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 500,
+                    background: tradeColors[v.trade] || tradeColors.Other, color: tradeText[v.trade] || tradeText.Other }}>
+                    {v.trade}
+                  </span>
+                  <span style={{ fontSize: 12, color: '#aaa' }}>Tap to view history →</span>
+                </div>
               </div>
             </div>
           ))}
@@ -290,12 +440,17 @@ function VendorDirectoryTab() {
         <div style={{ display: 'grid', gap: 10 }}>
           {!cleaners.length && <div className="empty-state">No cleaners added yet.</div>}
           {cleaners.map(c => (
-            <div key={c.id} className="card" style={{ padding: '14px 16px' }}>
-              <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>{c.name}</div>
-              <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{c.phone}</div>
-              <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{c.email}</div>
-              <div style={{ fontSize: 13, color: '#aaa' }}>
-                {c.agency_name && c.agency_name !== 'No agency' ? `Agency: ${c.agency_name}` : 'No agency'}
+            <div key={c.id} className="card" style={{ padding: '14px 16px', cursor: 'pointer' }} onClick={() => openCleaner(c)}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>{c.name}</div>
+                  <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{c.phone}</div>
+                  <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{c.email}</div>
+                  <div style={{ fontSize: 13, color: '#aaa' }}>
+                    {c.agency_name && c.agency_name !== 'No agency' ? `Agency: ${c.agency_name}` : 'No agency'}
+                  </div>
+                </div>
+                <span style={{ fontSize: 12, color: '#aaa' }}>Tap to view history →</span>
               </div>
             </div>
           ))}
@@ -328,6 +483,9 @@ function IssuesTab() {
   const [selected, setSelected] = useState(null)
   const [closeComment, setCloseComment] = useState('')
   const [assigning, setAssigning] = useState(false)
+  const [showHistory, setShowHistory] = useState(false)
+  const [closedIssues, setClosedIssues] = useState([])
+  const [historyLoading, setHistoryLoading] = useState(false)
 
   useEffect(() => {
     Promise.all([
@@ -349,6 +507,14 @@ function IssuesTab() {
     return vendor?.name || cleaner?.name || null
   }
 
+  async function loadHistory() {
+    setHistoryLoading(true)
+    const { data } = await supabase.from('issues').select('*').eq('status', 'Closed').order('created_at', { ascending: false })
+    setClosedIssues(data || [])
+    setHistoryLoading(false)
+    setShowHistory(true)
+  }
+
   async function assignIssue(issueId, assigneeId) {
     setAssigning(true)
     const status = assigneeId ? 'Assigned' : 'Open'
@@ -364,6 +530,46 @@ function IssuesTab() {
     setIssues(issues.filter(i => i.id !== issueId))
     setSelected(null)
     setCloseComment('')
+  }
+
+  // History view
+  if (showHistory) {
+    return (
+      <div>
+        <button onClick={() => setShowHistory(false)} style={{
+          background: 'none', border: '1px solid #e0e0e0', borderRadius: 8,
+          padding: '8px 16px', fontSize: 13, cursor: 'pointer', marginBottom: 16, color: '#555'
+        }}>← Back to open issues</button>
+        <div style={{ fontWeight: 600, marginBottom: 12 }}>Closed issues history ({closedIssues.length} total)</div>
+        {historyLoading && <div className="empty-state">Loading history...</div>}
+        {!historyLoading && !closedIssues.length && <div className="empty-state">No closed issues yet.</div>}
+        {!historyLoading && closedIssues.map(issue => (
+          <div key={issue.id} className="card" style={{ marginBottom: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+              <div style={{ fontWeight: 600 }}>{issue.category}</div>
+              <span className="badge badge-ready">Closed</span>
+            </div>
+            <div style={{ fontSize: 13, color: '#555', marginBottom: 6 }}>{issue.description}</div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 4 }}>
+              <SeverityBadge s={issue.severity} />
+              <span style={{ fontSize: 12, color: '#aaa' }}>{new Date(issue.created_at).toLocaleDateString('en-GB')}</span>
+            </div>
+            {issue.issue_photo_url && (
+              <div style={{ marginTop: 8 }}>
+                <div style={{ fontSize: 11, color: '#aaa', marginBottom: 4 }}>Issue photo</div>
+                <img src={issue.issue_photo_url} alt="Issue" style={{ width: '100%', maxHeight: 160, objectFit: 'cover', borderRadius: 8 }} />
+              </div>
+            )}
+            {issue.fix_photo_url && (
+              <div style={{ marginTop: 8 }}>
+                <div style={{ fontSize: 11, color: '#aaa', marginBottom: 4 }}>Fix photo</div>
+                <img src={issue.fix_photo_url} alt="Fix" style={{ width: '100%', maxHeight: 160, objectFit: 'cover', borderRadius: 8 }} />
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    )
   }
 
   // Detail view
@@ -442,14 +648,22 @@ function IssuesTab() {
   }
 
   if (loading) return <div className="empty-state">Loading issues...</div>
-  if (!issues.length) return <div className="empty-state">No open issues. All clear.</div>
 
   const grouped = ['Critical', 'High', 'Medium', 'Low'].map(sev => ({
     severity: sev, items: issues.filter(i => i.severity === sev),
   })).filter(g => g.items.length > 0)
 
   return (
-    <div style={{ display: 'grid', gap: 20 }}>
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <div style={{ fontSize: 14, color: '#888' }}>{issues.length} open issue{issues.length !== 1 ? 's' : ''}</div>
+        <button onClick={loadHistory} style={{
+          background: 'none', border: '1px solid #e0e0e0', borderRadius: 8,
+          padding: '8px 14px', fontSize: 13, cursor: 'pointer', color: '#555'
+        }}>View closed history</button>
+      </div>
+      {!issues.length && <div className="empty-state">No open issues. All clear.</div>}
+      <div style={{ display: 'grid', gap: 20 }}>
       {grouped.map(group => (
         <div key={group.severity}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
@@ -486,8 +700,7 @@ function InventoryTab() {
   const [items, setItems] = useState([])
   const [properties, setProperties] = useState([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState('all')
-  const [showAll, setShowAll] = useState(false)
+  const [selectedPropertyId, setSelectedPropertyId] = useState('all')
 
   useEffect(() => {
     Promise.all([
@@ -500,63 +713,77 @@ function InventoryTab() {
     })
   }, [])
 
-  const filtered = items.filter(item => {
-    if (filter === 'all') return true
-    if (filter === 'needs_restock') return item.needs_restock
-    return item.property_id === filter
-  })
+  const filtered = selectedPropertyId === 'all'
+    ? items
+    : items.filter(item => String(item.property_id) === String(selectedPropertyId))
+
+  const needsRestockCount = filtered.filter(i => i.needs_restock).length
 
   if (loading) return <div className="empty-state">Loading inventory...</div>
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-        <select className="input-field" style={{ maxWidth: 260, padding: '8px 12px' }}
-          value={filter} onChange={e => setFilter(e.target.value)}>
+      {/* Property filter */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+        <select className="input-field" style={{ maxWidth: 280, padding: '8px 12px' }}
+          value={selectedPropertyId} onChange={e => setSelectedPropertyId(e.target.value)}>
           <option value="all">All properties</option>
-          <option value="needs_restock">Needs restock only</option>
           {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
+        {needsRestockCount > 0 && (
+          <span className="badge badge-notready">{needsRestockCount} item{needsRestockCount !== 1 ? 's' : ''} need restock</span>
+        )}
+        {needsRestockCount === 0 && filtered.length > 0 && (
+          <span className="badge badge-ready">All stocked</span>
+        )}
       </div>
 
-      {!filtered.length && <div className="empty-state">No inventory items found.</div>}
+      {!filtered.length && (
+        <div className="empty-state">
+          {selectedPropertyId === 'all' ? 'No inventory items added yet.' : 'No inventory items for this property.'}
+        </div>
+      )}
 
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-          <thead>
-            <tr style={{ background: '#f4f4f4' }}>
-              {['Property', 'Item', 'Min qty', 'Current qty', 'Status'].map(h => (
-                <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600,
-                  fontSize: 13, color: '#444', borderBottom: '1px solid #e0e0e0' }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((item, i) => (
-              <tr key={item.id} style={{ background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
-                <td style={{ padding: '10px 12px', borderBottom: '1px solid #f0f0f0', color: '#555' }}>
-                  {properties.find(p => p.id == item.property_id)?.name || '—'}
-                </td>
-                <td style={{ padding: '10px 12px', borderBottom: '1px solid #f0f0f0', fontWeight: 500 }}>
-                  {item.item_name}
-                </td>
-                <td style={{ padding: '10px 12px', borderBottom: '1px solid #f0f0f0', color: '#888' }}>
-                  {item.minimum_quantity}
-                </td>
-                <td style={{ padding: '10px 12px', borderBottom: '1px solid #f0f0f0',
-                  color: item.needs_restock ? '#dc2626' : '#16a34a', fontWeight: 600 }}>
-                  {item.current_quantity}
-                </td>
-                <td style={{ padding: '10px 12px', borderBottom: '1px solid #f0f0f0' }}>
-                  <span className={`badge ${item.needs_restock ? 'badge-notready' : 'badge-ready'}`}>
-                    {item.needs_restock ? 'Needs restock' : 'Stocked'}
-                  </span>
-                </td>
+      {filtered.length > 0 && (
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+            <thead>
+              <tr style={{ background: '#f4f4f4' }}>
+                {(selectedPropertyId === 'all' ? ['Property', 'Item', 'Min qty', 'Current qty', 'Status'] : ['Item', 'Min qty', 'Current qty', 'Status']).map(h => (
+                  <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600,
+                    fontSize: 13, color: '#444', borderBottom: '1px solid #e0e0e0' }}>{h}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {filtered.map((item, i) => (
+                <tr key={item.id} style={{ background: item.needs_restock ? '#fff8f8' : i % 2 === 0 ? '#fff' : '#fafafa' }}>
+                  {selectedPropertyId === 'all' && (
+                    <td style={{ padding: '10px 12px', borderBottom: '1px solid #f0f0f0', color: '#555' }}>
+                      {properties.find(p => String(p.id) === String(item.property_id))?.name || '—'}
+                    </td>
+                  )}
+                  <td style={{ padding: '10px 12px', borderBottom: '1px solid #f0f0f0', fontWeight: 500 }}>
+                    {item.item_name}
+                  </td>
+                  <td style={{ padding: '10px 12px', borderBottom: '1px solid #f0f0f0', color: '#888', textAlign: 'center' }}>
+                    {item.minimum_quantity}
+                  </td>
+                  <td style={{ padding: '10px 12px', borderBottom: '1px solid #f0f0f0',
+                    color: item.needs_restock ? '#dc2626' : '#16a34a', fontWeight: 600, textAlign: 'center' }}>
+                    {item.current_quantity}
+                  </td>
+                  <td style={{ padding: '10px 12px', borderBottom: '1px solid #f0f0f0' }}>
+                    <span className={`badge ${item.needs_restock ? 'badge-notready' : 'badge-ready'}`}>
+                      {item.needs_restock ? 'Needs restock' : 'Enough'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   )
 }
