@@ -41,7 +41,7 @@ function ReadinessBar({ percent }) {
   )
 }
 
-// ── PROPERTY PROFILE ──────────────────────────────────────────────────
+// ── PROPERTY PROFILE ─────────────────────────────────────────────────
 function PropertyProfileTab() {
   const [properties, setProperties] = useState([])
   const [loading, setLoading] = useState(true)
@@ -78,47 +78,6 @@ function PropertyProfileTab() {
     p.address?.toLowerCase().includes(search.toLowerCase())
   )
 
-  // History view
-  if (showHistory) {
-    return (
-      <div>
-        <button onClick={() => setShowHistory(false)} style={{
-          background: 'none', border: '1px solid #e0e0e0', borderRadius: 8,
-          padding: '8px 16px', fontSize: 13, cursor: 'pointer', marginBottom: 16, color: '#555'
-        }}>← Back to open issues</button>
-        <div style={{ fontWeight: 600, marginBottom: 12 }}>Closed issues history ({closedIssues.length} total)</div>
-        {historyLoading && <div className="empty-state">Loading history...</div>}
-        {!historyLoading && !closedIssues.length && <div className="empty-state">No closed issues yet.</div>}
-        {!historyLoading && closedIssues.map(issue => (
-          <div key={issue.id} className="card" style={{ marginBottom: 8 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
-              <div style={{ fontWeight: 600 }}>{issue.category}</div>
-              <span className="badge badge-ready">Closed</span>
-            </div>
-            <div style={{ fontSize: 13, color: '#555', marginBottom: 6 }}>{issue.description}</div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 4 }}>
-              <SeverityBadge s={issue.severity} />
-              <span style={{ fontSize: 12, color: '#aaa' }}>{new Date(issue.created_at).toLocaleDateString('en-GB')}</span>
-            </div>
-            {issue.issue_photo_url && (
-              <div style={{ marginTop: 8 }}>
-                <div style={{ fontSize: 11, color: '#aaa', marginBottom: 4 }}>Issue photo</div>
-                <img src={issue.issue_photo_url} alt="Issue" style={{ width: '100%', maxHeight: 160, objectFit: 'cover', borderRadius: 8 }} />
-              </div>
-            )}
-            {issue.fix_photo_url && (
-              <div style={{ marginTop: 8 }}>
-                <div style={{ fontSize: 11, color: '#aaa', marginBottom: 4 }}>Fix photo</div>
-                <img src={issue.fix_photo_url} alt="Fix" style={{ width: '100%', maxHeight: 160, objectFit: 'cover', borderRadius: 8 }} />
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-    )
-  }
-
-  // Detail view
   if (selected) {
     const lastIssue = issues[0]
     const needsRestock = restockItems.filter(r => r.needs_restock)
@@ -150,7 +109,6 @@ function PropertyProfileTab() {
           <ReadinessBar percent={selected.readiness_percent || 0} />
         </div>
 
-        {/* Knowledge Base */}
         <div className="card" style={{ marginBottom: 12 }}>
           <div style={{ fontWeight: 600, marginBottom: 12 }}>Knowledge Base</div>
           <div style={{ display: 'grid', gap: 10 }}>
@@ -163,13 +121,9 @@ function PropertyProfileTab() {
           </div>
         </div>
 
-        {/* Cleaning Status */}
         <div className="card" style={{ marginBottom: 12 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
             <div style={{ fontWeight: 600 }}>Cleaning Status</div>
-            <button style={{ fontSize: 12, color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer' }}>
-              View cleaning history →
-            </button>
           </div>
           {jobs.length > 0 ? (
             <div>
@@ -182,14 +136,8 @@ function PropertyProfileTab() {
           ) : <div style={{ fontSize: 13, color: '#aaa' }}>No cleaning jobs recorded yet.</div>}
         </div>
 
-        {/* Issue Status */}
         <div className="card" style={{ marginBottom: 12 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <div style={{ fontWeight: 600 }}>Issue Status</div>
-            <button style={{ fontSize: 12, color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer' }}>
-              View issue history →
-            </button>
-          </div>
+          <div style={{ fontWeight: 600, marginBottom: 10 }}>Issue Status</div>
           {lastIssue ? (
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
@@ -202,7 +150,6 @@ function PropertyProfileTab() {
           ) : <div style={{ fontSize: 13, color: '#16a34a' }}>No open issues.</div>}
         </div>
 
-        {/* Inventory */}
         <div className="card" style={{ marginBottom: 12 }}>
           <div style={{ fontWeight: 600, marginBottom: 10 }}>Inventory Status</div>
           {needsRestock.length > 0 ? (
@@ -217,18 +164,11 @@ function PropertyProfileTab() {
           ) : <div style={{ fontSize: 13, color: '#16a34a' }}>All inventory stocked.</div>}
         </div>
 
-        {/* Compliance */}
         <div className="card">
           <div style={{ fontWeight: 600, marginBottom: 10 }}>Compliance Status</div>
-          {expiredDocs.length > 0 && (
-            <div style={{ fontSize: 13, color: '#dc2626', marginBottom: 6 }}>{expiredDocs.length} document{expiredDocs.length !== 1 ? 's' : ''} expired</div>
-          )}
-          {dueSoonDocs.length > 0 && (
-            <div style={{ fontSize: 13, color: '#d97706', marginBottom: 6 }}>{dueSoonDocs.length} document{dueSoonDocs.length !== 1 ? 's' : ''} due soon</div>
-          )}
-          {expiredDocs.length === 0 && dueSoonDocs.length === 0 && (
-            <div style={{ fontSize: 13, color: '#16a34a' }}>All compliance documents valid.</div>
-          )}
+          {expiredDocs.length > 0 && <div style={{ fontSize: 13, color: '#dc2626', marginBottom: 6 }}>{expiredDocs.length} document{expiredDocs.length !== 1 ? 's' : ''} expired</div>}
+          {dueSoonDocs.length > 0 && <div style={{ fontSize: 13, color: '#d97706', marginBottom: 6 }}>{dueSoonDocs.length} document{dueSoonDocs.length !== 1 ? 's' : ''} due soon</div>}
+          {expiredDocs.length === 0 && dueSoonDocs.length === 0 && <div style={{ fontSize: 13, color: '#16a34a' }}>All compliance documents valid.</div>}
         </div>
       </div>
     )
@@ -265,7 +205,7 @@ function PropertyProfileTab() {
   )
 }
 
-// ── VENDOR DIRECTORY ──────────────────────────────────────────────────
+// ── VENDOR DIRECTORY ─────────────────────────────────────────────────
 function VendorDirectoryTab() {
   const [vendors, setVendors] = useState([])
   const [cleaners, setCleaners] = useState([])
@@ -313,11 +253,10 @@ function VendorDirectoryTab() {
 
   if (loading) return <div className="empty-state">Loading...</div>
 
-  // Detail view — vendor history
   if (selected && selectedType === 'vendor') {
     return (
       <div>
-        <button onClick={() => { setSelected(null); setSelectedType(null); }} style={{
+        <button onClick={() => { setSelected(null); setSelectedType(null) }} style={{
           background: 'none', border: '1px solid #e0e0e0', borderRadius: 8,
           padding: '8px 16px', fontSize: 13, cursor: 'pointer', marginBottom: 16, color: '#555'
         }}>← Back to vendors</button>
@@ -348,26 +287,19 @@ function VendorDirectoryTab() {
             </div>
             <div style={{ fontSize: 13, color: '#555', marginBottom: 4 }}>{issue.description}</div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <span className={`badge badge-${issue.severity?.toLowerCase() || 'low'}`}>{issue.severity}</span>
+              <SeverityBadge s={issue.severity} />
               <span style={{ fontSize: 12, color: '#aaa' }}>{new Date(issue.created_at).toLocaleDateString('en-GB')}</span>
             </div>
-            {issue.fix_photo_url && (
-              <div style={{ marginTop: 8 }}>
-                <div style={{ fontSize: 11, color: '#aaa', marginBottom: 4 }}>Fix proof photo</div>
-                <img src={issue.fix_photo_url} alt="Fix" style={{ width: '100%', maxHeight: 160, objectFit: 'cover', borderRadius: 8 }} />
-              </div>
-            )}
           </div>
         ))}
       </div>
     )
   }
 
-  // Detail view — cleaner history
   if (selected && selectedType === 'cleaner') {
     return (
       <div>
-        <button onClick={() => { setSelected(null); setSelectedType(null); }} style={{
+        <button onClick={() => { setSelected(null); setSelectedType(null) }} style={{
           background: 'none', border: '1px solid #e0e0e0', borderRadius: 8,
           padding: '8px 16px', fontSize: 13, cursor: 'pointer', marginBottom: 16, color: '#555'
         }}>← Back to cleaners</button>
@@ -388,7 +320,7 @@ function VendorDirectoryTab() {
               <div style={{ fontWeight: 600 }}>Job — {new Date(job.job_date).toLocaleDateString('en-GB')}</div>
               <span className={`badge ${job.status === 'Complete' ? 'badge-ready' : job.status === 'In progress' ? 'badge-atrisk' : 'badge-notready'}`}>{job.status}</span>
             </div>
-            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: 12 }}>
               <span style={{ fontSize: 13, color: '#888' }}>Readiness: <strong>{job.readiness_percent || 0}%</strong></span>
               <span style={{ fontSize: 13, color: '#888' }}>Tasks: {job.completed_tasks || 0} / {job.total_tasks || 0}</span>
             </div>
@@ -419,15 +351,11 @@ function VendorDirectoryTab() {
                   <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>{v.name}</div>
                   <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{v.phone}</div>
                   <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{v.email}</div>
-                  <div style={{ fontSize: 13, color: '#aaa' }}>
-                    {v.agency_name && v.agency_name !== 'No agency' ? `Agency: ${v.agency_name}` : 'No agency'}
-                  </div>
+                  <div style={{ fontSize: 13, color: '#aaa' }}>{v.agency_name && v.agency_name !== 'No agency' ? `Agency: ${v.agency_name}` : 'No agency'}</div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
                   <span style={{ padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 500,
-                    background: tradeColors[v.trade] || tradeColors.Other, color: tradeText[v.trade] || tradeText.Other }}>
-                    {v.trade}
-                  </span>
+                    background: tradeColors[v.trade] || tradeColors.Other, color: tradeText[v.trade] || tradeText.Other }}>{v.trade}</span>
                   <span style={{ fontSize: 12, color: '#aaa' }}>Tap to view history →</span>
                 </div>
               </div>
@@ -446,9 +374,7 @@ function VendorDirectoryTab() {
                   <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>{c.name}</div>
                   <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{c.phone}</div>
                   <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{c.email}</div>
-                  <div style={{ fontSize: 13, color: '#aaa' }}>
-                    {c.agency_name && c.agency_name !== 'No agency' ? `Agency: ${c.agency_name}` : 'No agency'}
-                  </div>
+                  <div style={{ fontSize: 13, color: '#aaa' }}>{c.agency_name && c.agency_name !== 'No agency' ? `Agency: ${c.agency_name}` : 'No agency'}</div>
                 </div>
                 <span style={{ fontSize: 12, color: '#aaa' }}>Tap to view history →</span>
               </div>
@@ -474,7 +400,7 @@ function VendorDirectoryTab() {
   )
 }
 
-// ── ISSUES ────────────────────────────────────────────────────────────
+// ── ISSUES ───────────────────────────────────────────────────────────
 function IssuesTab() {
   const [issues, setIssues] = useState([])
   const [vendors, setVendors] = useState([])
@@ -532,7 +458,6 @@ function IssuesTab() {
     setCloseComment('')
   }
 
-  // History view
   if (showHistory) {
     return (
       <div>
@@ -572,22 +497,18 @@ function IssuesTab() {
     )
   }
 
-  // Detail view
   if (selected) {
-    const assigneeName = getAssigneeName(selected)
     const allAssignees = [
       { id: '', name: 'Not assigned' },
       ...vendors.map(v => ({ id: v.id, name: `${v.name} (Vendor)` })),
       ...cleaners.map(c => ({ id: c.id, name: `${c.name} (Cleaner)` })),
     ]
-
     return (
       <div>
         <button onClick={() => setSelected(null)} style={{
           background: 'none', border: '1px solid #e0e0e0', borderRadius: 8,
           padding: '8px 16px', fontSize: 13, cursor: 'pointer', marginBottom: 16, color: '#555'
         }}>← Back to issues</button>
-
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
             <div>
@@ -596,28 +517,23 @@ function IssuesTab() {
             </div>
             <span className={`badge badge-${(selected.status || 'open').toLowerCase().replace(' ', '')}`}>{selected.status || 'Open'}</span>
           </div>
-
           <div style={{ marginBottom: 16 }}>
             <div style={{ fontSize: 12, color: '#aaa', marginBottom: 4 }}>Issue details</div>
             <div style={{ fontSize: 14, color: '#333' }}>{selected.description}</div>
           </div>
-
           {selected.issue_photo_url && (
             <div style={{ marginBottom: 16 }}>
               <div style={{ fontSize: 12, color: '#aaa', marginBottom: 6 }}>Before photo</div>
               <img src={selected.issue_photo_url} alt="Issue" style={{ width: '100%', borderRadius: 8, maxHeight: 200, objectFit: 'cover' }} />
             </div>
           )}
-
           {selected.fix_photo_url && (
             <div style={{ marginBottom: 16 }}>
               <div style={{ fontSize: 12, color: '#aaa', marginBottom: 6 }}>After photo</div>
               <img src={selected.fix_photo_url} alt="Fix" style={{ width: '100%', borderRadius: 8, maxHeight: 200, objectFit: 'cover' }} />
             </div>
           )}
-
           <div className="divider" />
-
           <div style={{ marginBottom: 16 }}>
             <label className="label">Assigned to</label>
             <select className="input-field" value={selected.vendor_id || ''}
@@ -625,14 +541,11 @@ function IssuesTab() {
               {allAssignees.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
             </select>
           </div>
-
           <button className="btn-primary" onClick={() => assignIssue(selected.id, selected.vendor_id)}
             disabled={assigning} style={{ marginBottom: 12 }}>
             {assigning ? 'Assigning...' : 'Confirm assignment'}
           </button>
-
           <div className="divider" />
-
           <div style={{ marginBottom: 12 }}>
             <label className="label">Close issue with comment</label>
             <textarea className="input-field" rows={3} placeholder="Add a closing comment..."
@@ -664,38 +577,39 @@ function IssuesTab() {
       </div>
       {!issues.length && <div className="empty-state">No open issues. All clear.</div>}
       <div style={{ display: 'grid', gap: 20 }}>
-      {grouped.map(group => (
-        <div key={group.severity}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-            <SeverityBadge s={group.severity} />
-            <span style={{ fontSize: 13, color: '#888' }}>{group.items.length} issue{group.items.length !== 1 ? 's' : ''}</span>
-          </div>
-          <div style={{ display: 'grid', gap: 8 }}>
-            {group.items.map(issue => {
-              const assigneeName = getAssigneeName(issue)
-              return (
-                <div key={issue.id} className="card" style={{ cursor: 'pointer' }} onClick={() => setSelected(issue)}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
-                    <div style={{ fontWeight: 600 }}>{issue.category}</div>
-                    <span className={`badge ${issue.status === 'Assigned' ? 'badge-valid' : issue.status === 'In progress' ? 'badge-atrisk' : 'badge-open'}`}>
-                      {issue.status || 'Not assigned'}
-                    </span>
+        {grouped.map(group => (
+          <div key={group.severity}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <SeverityBadge s={group.severity} />
+              <span style={{ fontSize: 13, color: '#888' }}>{group.items.length} issue{group.items.length !== 1 ? 's' : ''}</span>
+            </div>
+            <div style={{ display: 'grid', gap: 8 }}>
+              {group.items.map(issue => {
+                const assigneeName = getAssigneeName(issue)
+                return (
+                  <div key={issue.id} className="card" style={{ cursor: 'pointer' }} onClick={() => setSelected(issue)}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+                      <div style={{ fontWeight: 600 }}>{issue.category}</div>
+                      <span className={`badge ${issue.status === 'Assigned' ? 'badge-valid' : issue.status === 'In progress' ? 'badge-atrisk' : 'badge-open'}`}>
+                        {issue.status || 'Not assigned'}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 13, color: '#555', marginBottom: 6 }}>{issue.description}</div>
+                    <div style={{ fontSize: 12, color: '#888' }}>
+                      {assigneeName ? `Assigned to: ${assigneeName}` : 'Not assigned'}
+                    </div>
                   </div>
-                  <div style={{ fontSize: 13, color: '#555', marginBottom: 6 }}>{issue.description}</div>
-                  <div style={{ fontSize: 12, color: '#888' }}>
-                    {assigneeName ? `Assigned to: ${assigneeName}` : 'Not assigned'}
-                  </div>
-                </div>
-              )
-            })}
+                )
+              })}
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   )
 }
 
-// ── INVENTORY ─────────────────────────────────────────────────────────
+// ── INVENTORY ────────────────────────────────────────────────────────
 function InventoryTab() {
   const [items, setItems] = useState([])
   const [properties, setProperties] = useState([])
@@ -723,7 +637,6 @@ function InventoryTab() {
 
   return (
     <div>
-      {/* Property filter */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
         <select className="input-field" style={{ maxWidth: 280, padding: '8px 12px' }}
           value={selectedPropertyId} onChange={e => setSelectedPropertyId(e.target.value)}>
@@ -749,7 +662,10 @@ function InventoryTab() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
             <thead>
               <tr style={{ background: '#f4f4f4' }}>
-                {(selectedPropertyId === 'all' ? ['Property', 'Item', 'Min qty', 'Current qty', 'Status'] : ['Item', 'Min qty', 'Current qty', 'Status']).map(h => (
+                {(selectedPropertyId === 'all'
+                  ? ['Property', 'Item', 'Min qty', 'Current qty', 'Status']
+                  : ['Item', 'Min qty', 'Current qty', 'Status']
+                ).map(h => (
                   <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600,
                     fontSize: 13, color: '#444', borderBottom: '1px solid #e0e0e0' }}>{h}</th>
                 ))}
@@ -763,16 +679,10 @@ function InventoryTab() {
                       {properties.find(p => String(p.id) === String(item.property_id))?.name || '—'}
                     </td>
                   )}
-                  <td style={{ padding: '10px 12px', borderBottom: '1px solid #f0f0f0', fontWeight: 500 }}>
-                    {item.item_name}
-                  </td>
-                  <td style={{ padding: '10px 12px', borderBottom: '1px solid #f0f0f0', color: '#888', textAlign: 'center' }}>
-                    {item.minimum_quantity}
-                  </td>
+                  <td style={{ padding: '10px 12px', borderBottom: '1px solid #f0f0f0', fontWeight: 500 }}>{item.item_name}</td>
+                  <td style={{ padding: '10px 12px', borderBottom: '1px solid #f0f0f0', color: '#888', textAlign: 'center' }}>{item.minimum_quantity}</td>
                   <td style={{ padding: '10px 12px', borderBottom: '1px solid #f0f0f0',
-                    color: item.needs_restock ? '#dc2626' : '#16a34a', fontWeight: 600, textAlign: 'center' }}>
-                    {item.current_quantity}
-                  </td>
+                    color: item.needs_restock ? '#dc2626' : '#16a34a', fontWeight: 600, textAlign: 'center' }}>{item.current_quantity}</td>
                   <td style={{ padding: '10px 12px', borderBottom: '1px solid #f0f0f0' }}>
                     <span className={`badge ${item.needs_restock ? 'badge-notready' : 'badge-ready'}`}>
                       {item.needs_restock ? 'Needs restock' : 'Enough'}
@@ -788,16 +698,29 @@ function InventoryTab() {
   )
 }
 
-// ── COMPLIANCE ────────────────────────────────────────────────────────
+// ── COMPLIANCE ───────────────────────────────────────────────────────
 function ComplianceTab() {
   const [docs, setDocs] = useState([])
   const [properties, setProperties] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ document_type: '', property_id: '', issue_date: '', expiry_date: '', status: 'Valid' })
+  const [form, setForm] = useState({ document_type: '', property_id: '', issue_date: '', expiry_date: '' })
   const [saving, setSaving] = useState(false)
 
   const docTypes = ['Gas Safety Record (CP12)', 'EICR', 'EPC', 'Public Liability Insurance', 'Fire Risk Assessment']
+
+  async function loadDocs() {
+    const { data } = await supabase.from('compliance_documents').select('*')
+    const enriched = (data || []).map(doc => {
+      const days = doc.expiry_date ? Math.ceil((new Date(doc.expiry_date) - new Date()) / 86400000) : null
+      let status = 'Valid'
+      if (days === null) status = 'Missing'
+      else if (days < 0) status = 'Expired'
+      else if (days <= 30) status = 'Due Soon'
+      return { ...doc, computed_status: status }
+    })
+    setDocs(enriched)
+  }
 
   useEffect(() => {
     Promise.all([
@@ -820,32 +743,14 @@ function ComplianceTab() {
 
   async function saveDocument() {
     setSaving(true)
-    const days = form.expiry_date ? Math.ceil((new Date(form.expiry_date) - new Date()) / 86400000) : null
-    let status = 'Valid'
-    if (days === null) status = 'Missing'
-    else if (days < 0) status = 'Expired'
-    else if (days <= 30) status = 'Due Soon'
-
     await supabase.from('compliance_documents').insert({
       document_type: form.document_type,
       property_id: form.property_id || null,
       issue_date: form.issue_date || null,
       expiry_date: form.expiry_date || null,
-      status,
     })
-
-    // Refresh
-    const { data } = await supabase.from('compliance_documents').select('*')
-    const enriched = (data || []).map(doc => {
-      const d = doc.expiry_date ? Math.ceil((new Date(doc.expiry_date) - new Date()) / 86400000) : null
-      let s = 'Valid'
-      if (d === null) s = 'Missing'
-      else if (d < 0) s = 'Expired'
-      else if (d <= 30) s = 'Due Soon'
-      return { ...doc, computed_status: s }
-    })
-    setDocs(enriched)
-    setForm({ document_type: '', property_id: '', issue_date: '', expiry_date: '', status: 'Valid' })
+    await loadDocs()
+    setForm({ document_type: '', property_id: '', issue_date: '', expiry_date: '' })
     setShowForm(false)
     setSaving(false)
   }
@@ -868,37 +773,28 @@ function ComplianceTab() {
       {showForm && (
         <div className="card" style={{ marginBottom: 20 }}>
           <div style={{ fontWeight: 600, marginBottom: 16 }}>Add compliance document</div>
-
           <div className="form-group">
             <label className="label">Document type</label>
-            <select className="input-field" value={form.document_type}
-              onChange={e => setForm({ ...form, document_type: e.target.value })}>
+            <select className="input-field" value={form.document_type} onChange={e => setForm({ ...form, document_type: e.target.value })}>
               <option value="">Select document</option>
               {docTypes.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
           </div>
-
           <div className="form-group">
             <label className="label">Property</label>
-            <select className="input-field" value={form.property_id}
-              onChange={e => setForm({ ...form, property_id: e.target.value })}>
+            <select className="input-field" value={form.property_id} onChange={e => setForm({ ...form, property_id: e.target.value })}>
               <option value="">Select property</option>
               {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </div>
-
           <div className="form-group">
             <label className="label">Issue date</label>
-            <input className="input-field" type="date" value={form.issue_date}
-              onChange={e => setForm({ ...form, issue_date: e.target.value })} />
+            <input className="input-field" type="date" value={form.issue_date} onChange={e => setForm({ ...form, issue_date: e.target.value })} />
           </div>
-
           <div className="form-group">
             <label className="label">Expiry date</label>
-            <input className="input-field" type="date" value={form.expiry_date}
-              onChange={e => setForm({ ...form, expiry_date: e.target.value })} />
+            <input className="input-field" type="date" value={form.expiry_date} onChange={e => setForm({ ...form, expiry_date: e.target.value })} />
           </div>
-
           <button className="btn-primary" onClick={saveDocument} disabled={saving || !form.document_type}>
             {saving ? 'Saving...' : 'Save document'}
           </button>
@@ -919,7 +815,7 @@ function ComplianceTab() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
                     <div style={{ fontWeight: 600, marginBottom: 4 }}>{doc.document_type}</div>
-                    {doc.notes && <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{doc.notes}</div>}
+                    {doc.notes && <div style={{ fontSize: 13, color: '#888' }}>{doc.notes}</div>}
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <CompBadge status={doc.computed_status} />
@@ -937,7 +833,7 @@ function ComplianceTab() {
   )
 }
 
-// ── MAIN DASHBOARD ────────────────────────────────────────────────────
+// ── MAIN ─────────────────────────────────────────────────────────────
 export default function OperatorDashboard() {
   const [tab, setTab] = useState('property-profile')
 
