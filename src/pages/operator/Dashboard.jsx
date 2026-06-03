@@ -887,7 +887,7 @@ function ComplianceTab() {
 }
 
 // ── MAIN ─────────────────────────────────────────────────────────────
-export default function OperatorDashboard() {
+export default function OperatorDashboard({ onCreateJob }) {
   const [tab, setTab] = useState('property-profile')
   async function handleLogout() { await supabase.auth.signOut() }
 
@@ -908,7 +908,7 @@ export default function OperatorDashboard() {
             {tabs.map(t => <NavTab key={t.key} label={t.label} active={tab === t.key} onClick={() => setTab(t.key)} />)}
           </div>
         </div>
-        <button className="btn-secondary" onClick={handleLogout} style={{ padding: '8px 16px' }}>Sign out</button>
+        <div style={{ display: 'flex', gap: 8 }}><button className="btn-primary" onClick={onCreateJob} style={{ padding: '8px 16px', width: 'auto' }}>+ Create job</button><button className="btn-secondary" onClick={handleLogout} style={{ padding: '8px 16px' }}>Sign out</button></div>
       </div>
       <div className="page-body">
         {tab === 'property-profile'  && <PropertyProfileTab />}
