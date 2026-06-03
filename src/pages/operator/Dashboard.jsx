@@ -73,6 +73,8 @@ function PropertyProfileTab() {
   const [detailData, setDetailData] = useState(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [showCompForm, setShowCompForm] = useState(false)
+  const [showJobHistory, setShowJobHistory] = useState(false)
+  const [showIssueHistory, setShowIssueHistory] = useState(false)
   const [compForm, setCompForm] = useState({ document_type: '', issue_date: '', expiry_date: '' })
   const [savingComp, setSavingComp] = useState(false)
 
@@ -87,6 +89,8 @@ function PropertyProfileTab() {
 
   async function openProperty(p) {
     setSelected(p)
+    setShowJobHistory(false)
+    setShowIssueHistory(false)
     setDetailLoading(true)
     const [issRes, restRes, compRes, jobRes] = await Promise.all([
       supabase.from('issues').select('*').eq('property_id', p.id),
@@ -886,6 +890,103 @@ function ComplianceTab() {
   )
 }
 
+
+// ── JOBS ─────────────────────────────────────────────────────────────
+function JobsTab({ onCreateJob }) {
+  const [jobs, setJobs] = useState([])
+  const [properties, setProperties] = useState([])
+  const [cleaners, setCleaners] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [propertyFilter, setPropertyFilter] = useState('all')
+
+  useEffect(() => {
+    Promise.all([
+      supabase.from('jobs').select('*').order('job_date', { ascending: false }),
+      supabase.from('Properties').select('id, name'),
+      supabase.from('Cleaners').select('id, name'),
+    ]).then(([j, p, c]) => {
+      setJobs(j.data || [])
+      setProperties(p.data || [])
+      setCleaners(c.data || [])
+      setLoading(false)
+    })
+  }, [])
+
+  const filtered = jobs.filter(j => {
+    const statusMatch = statusFilter === 'all' || j.status === statusFilter
+    const propertyMatch = propertyFilter === 'all' || String(j.property_id) === String(propertyFilter)
+    return statusMatch && propertyMatch
+  })
+
+  function getPropertyName(id) {
+    return properties.find(p => String(p.id) === String(id))?.name || '—'
+  }
+  function getCleanerName(id) {
+    return cleaners.find(c => String(c.id) === String(id))?.name || '—'
+  }
+
+  if (loading) return <div className="empty-state">Loading jobs...</div>
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {['all', 'Not started', 'In progress', 'Complete'].map(f => (
+              <button key={f} onClick={() => setStatusFilter(f)} style={{
+                padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: 'pointer',
+                background: statusFilter === f ? '#0a0a0a' : '#f0f0f0',
+                color: statusFilter === f ? '#fff' : '#555', border: 'none',
+              }}>{f === 'all' ? 'All statuses' : f}</button>
+            ))}
+          </div>
+          <select className="input-field" style={{ maxWidth: 260, padding: '7px 12px', fontSize: 13 }}
+            value={propertyFilter} onChange={e => setPropertyFilter(e.target.value)}>
+            <option value="all">All properties</option>
+            {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </div>
+        <button onClick={onCreateJob} className="btn-primary" style={{ width: 'auto', padding: '8px 14px', fontSize: 13 }}>
+          + Create job
+        </button>
+      </div>
+
+      {!filtered.length && <div className="empty-state">No jobs found.</div>}
+
+      <div style={{ display: 'grid', gap: 10 }}>
+        {filtered.map(job => (
+          <div key={job.id} className="card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>{getPropertyName(job.property_id)}</div>
+                <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>Cleaner: {getCleanerName(job.cleaner_id)}</div>
+                <div style={{ fontSize: 13, color: '#888' }}>
+                  Date: {job.job_date ? new Date(job.job_date).toLocaleDateString('en-GB') : '—'}
+                  {job.checkin_time && ` · Check-in: ${new Date(job.checkin_time).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`}
+                </div>
+              </div>
+              <span className={`badge ${job.status === 'Complete' ? 'badge-ready' : job.status === 'In progress' ? 'badge-atrisk' : 'badge-notready'}`}>
+                {job.status || 'Not started'}
+              </span>
+            </div>
+            <div style={{ height: 6, background: '#f0f0f0', borderRadius: 3 }}>
+              <div style={{
+                height: 6, borderRadius: 3, transition: 'width 0.3s',
+                width: `${job.readiness_percent || 0}%`,
+                background: job.readiness_percent === 100 ? '#16a34a' : job.readiness_percent >= 50 ? '#d97706' : '#dc2626'
+              }} />
+            </div>
+            <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>
+              {job.readiness_percent || 0}% complete · {job.completed_tasks || 0}/{job.total_tasks || 0} tasks
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ── MAIN ─────────────────────────────────────────────────────────────
 export default function OperatorDashboard({ onCreateJob }) {
   const [tab, setTab] = useState('property-profile')
@@ -897,6 +998,7 @@ export default function OperatorDashboard({ onCreateJob }) {
     { key: 'issues', label: 'Issues' },
     { key: 'inventory', label: 'Inventory' },
     { key: 'compliance', label: 'Compliance' },
+    { key: 'jobs', label: 'Jobs' },
   ]
 
   return (
@@ -916,6 +1018,7 @@ export default function OperatorDashboard({ onCreateJob }) {
         {tab === 'issues'            && <IssuesTab />}
         {tab === 'inventory'         && <InventoryTab />}
         {tab === 'compliance'        && <ComplianceTab />}
+        {tab === 'jobs'             && <JobsTab onCreateJob={onCreateJob} />}
       </div>
     </div>
   )
