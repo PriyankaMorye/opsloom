@@ -346,12 +346,12 @@ function PropertyProfileTab() {
         <button onClick={() => setShowAddForm(!showAddForm)} className="btn-primary" style={{ width: 'auto', padding: '8px 16px', whiteSpace: 'nowrap' }}>{showAddForm ? 'Cancel' : '+ Add property'}</button>
       </div>
 
-      {showPaused && (
+      {showPaused ? (
         <div style={{ marginBottom: 20 }}>
           <div style={{ fontWeight: 600, marginBottom: 10, fontSize: 14 }}>Paused and deleted properties ({inactiveProps.length})</div>
-          {!inactiveProps.length && <div className="empty-state">None.</div>}
+          {!inactiveProps.length && <div className="empty-state">No paused or deleted properties.</div>}
           {inactiveProps.map(p => (
-            <div key={p.id} className="card" style={{ marginBottom: 8, opacity: 0.8 }}>
+            <div key={p.id} className="card" style={{ marginBottom: 8, opacity: 0.85 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div><div style={{ fontWeight: 600, marginBottom: 4 }}>{p.name}</div><div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>{p.address}</div><div style={{ fontSize: 12, color: '#aaa' }}>{p.property_status === 'paused' ? `Paused: ${p.pause_reason}` : `Deleted: ${p.delete_reason}`}</div></div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
@@ -362,8 +362,8 @@ function PropertyProfileTab() {
             </div>
           ))}
         </div>
-      )}
-
+      ) : (
+        <>
       {showAddForm && (
         <div className="card" style={{ marginBottom: 16 }}>
           <div style={{ fontWeight: 600, marginBottom: 16 }}>Add new property</div>
@@ -401,6 +401,8 @@ function PropertyProfileTab() {
           </div>
         ))}
       </div>
+        </>
+      )}
     </div>
   )
 }
@@ -411,15 +413,18 @@ function VendorDirectoryTab() {
   const [cleaners, setCleaners] = useState([])
   const [agencies, setAgencies] = useState([])
   const [loading, setLoading] = useState(true)
-  const [tab, setTab] = useState('vendors')
+  const [view, setView] = useState('vendors') // vendors | cleaners | agencies
+  const [tradeFilter, setTradeFilter] = useState('all')
   const [selected, setSelected] = useState(null)
   const [selectedType, setSelectedType] = useState(null)
   const [history, setHistory] = useState([])
   const [historyLoading, setHistoryLoading] = useState(false)
   const [showForm, setShowForm] = useState(false)
+  const [showBlocked, setShowBlocked] = useState(false)
+  const [editMode, setEditMode] = useState(false)
+  const [editForm, setEditForm] = useState({})
   const [saving, setSaving] = useState(false)
   const [errors, setErrors] = useState({})
-  const [tradeFilter, setTradeFilter] = useState('all')
   const [vendorForm, setVendorForm] = useState({ name: '', phone: '', email: '', trade: 'Handyman', other_trade: '', agency_id: '' })
   const [cleanerForm, setCleanerForm] = useState({ name: '', phone: '', email: '', agency_name: 'No agency' })
   const [agencyForm, setAgencyForm] = useState({ name: '', contact_no: '', email: '', address: '', trade: '', website: '', details: '' })
@@ -434,32 +439,97 @@ function VendorDirectoryTab() {
     })
   }, [])
 
-  async function openVendor(v) { setSelected(v); setSelectedType('vendor'); setHistoryLoading(true); const { data } = await supabase.from('issues').select('*').eq('vendor_id', v.id).order('created_at', { ascending: false }); setHistory(data || []); setHistoryLoading(false) }
-  async function openCleaner(c) { setSelected(c); setSelectedType('cleaner'); setHistoryLoading(true); const { data } = await supabase.from('jobs').select('*').eq('cleaner_id', c.id).order('created_at', { ascending: false }); setHistory(data || []); setHistoryLoading(false) }
+  async function openVendor(v) {
+    setSelected(v); setSelectedType('vendor'); setEditMode(false); setHistoryLoading(true)
+    const { data } = await supabase.from('issues').select('*').eq('vendor_id', v.id).order('created_at', { ascending: false })
+    setHistory(data || []); setHistoryLoading(false)
+  }
+  async function openCleaner(c) {
+    setSelected(c); setSelectedType('cleaner'); setEditMode(false); setHistoryLoading(true)
+    const { data } = await supabase.from('jobs').select('*').eq('cleaner_id', c.id).order('created_at', { ascending: false })
+    setHistory(data || []); setHistoryLoading(false)
+  }
+
+  async function toggleBlock(person, type) {
+    const table = type === 'vendor' ? 'Vendors' : 'Cleaners'
+    const newVal = !person.is_blocked
+    await supabase.from(table).update({ is_blocked: newVal }).eq('id', person.id)
+    const update = { ...person, is_blocked: newVal }
+    setSelected(update)
+    if (type === 'vendor') setVendors(prev => prev.map(v => v.id === person.id ? update : v))
+    else setCleaners(prev => prev.map(c => c.id === person.id ? update : c))
+  }
+
+  async function saveVendorEdit() {
+    setSaving(true)
+    const finalTrade = editForm.trade === 'Other' ? editForm.other_trade : editForm.trade
+    const { data } = await supabase.from('Vendors').update({ name: editForm.name, phone: editForm.phone, email: editForm.email, trade: finalTrade, agency_name: editForm.agency_name }).eq('id', selected.id).select().single()
+    setSelected(data); setVendors(prev => prev.map(v => v.id === selected.id ? data : v)); setEditMode(false); setSaving(false)
+  }
+
+  async function saveCleanerEdit() {
+    setSaving(true)
+    const { data } = await supabase.from('Cleaners').update({ name: editForm.name, phone: editForm.phone, email: editForm.email, agency_name: editForm.agency_name }).eq('id', selected.id).select().single()
+    setSelected(data); setCleaners(prev => prev.map(c => c.id === selected.id ? data : c)); setEditMode(false); setSaving(false)
+  }
 
   function validateVendor() { const e = {}; if (!required(vendorForm.name)) e.name = 'Name is required'; if (!required(vendorForm.phone)) e.phone = 'Phone is required'; else if (!validatePhone(vendorForm.phone)) e.phone = 'Invalid phone'; if (!required(vendorForm.email)) e.email = 'Email is required'; else if (!validateEmail(vendorForm.email)) e.email = 'Invalid email'; if (vendorForm.trade === 'Other' && !required(vendorForm.other_trade)) e.other_trade = 'Please specify trade'; setErrors(e); return Object.keys(e).length === 0 }
   function validateCleaner() { const e = {}; if (!required(cleanerForm.name)) e.name = 'Name is required'; if (!required(cleanerForm.phone)) e.phone = 'Phone is required'; else if (!validatePhone(cleanerForm.phone)) e.phone = 'Invalid phone'; if (cleanerForm.email && !validateEmail(cleanerForm.email)) e.email = 'Invalid email'; setErrors(e); return Object.keys(e).length === 0 }
   function validateAgency() { const e = {}; if (!required(agencyForm.name)) e.name = 'Agency name is required'; if (agencyForm.email && !validateEmail(agencyForm.email)) e.email = 'Invalid email'; setErrors(e); return Object.keys(e).length === 0 }
 
-  async function saveVendor() {
-    if (!validateVendor()) return; setSaving(true)
-    const finalTrade = vendorForm.trade === 'Other' ? vendorForm.other_trade : vendorForm.trade
-    const agencyName = vendorForm.agency_id ? agencies.find(a => String(a.id) === String(vendorForm.agency_id))?.name || 'No agency' : 'No agency'
-    const { data } = await supabase.from('Vendors').insert({ name: vendorForm.name, phone: vendorForm.phone, email: vendorForm.email, trade: finalTrade, agency_name: agencyName }).select()
-    setVendors(prev => [...prev, ...(data || [])]); setVendorForm({ name: '', phone: '', email: '', trade: 'Handyman', other_trade: '', agency_id: '' }); setShowForm(false); setErrors({}); setSaving(false)
-  }
+  async function saveVendor() { if (!validateVendor()) return; setSaving(true); const finalTrade = vendorForm.trade === 'Other' ? vendorForm.other_trade : vendorForm.trade; const agencyName = vendorForm.agency_id ? agencies.find(a => String(a.id) === String(vendorForm.agency_id))?.name || 'No agency' : 'No agency'; const { data } = await supabase.from('Vendors').insert({ name: vendorForm.name, phone: vendorForm.phone, email: vendorForm.email, trade: finalTrade, agency_name: agencyName }).select(); setVendors(prev => [...prev, ...(data || [])]); setVendorForm({ name: '', phone: '', email: '', trade: 'Handyman', other_trade: '', agency_id: '' }); setShowForm(false); setErrors({}); setSaving(false) }
   async function saveCleaner() { if (!validateCleaner()) return; setSaving(true); const { data } = await supabase.from('Cleaners').insert({ ...cleanerForm }).select(); setCleaners(prev => [...prev, ...(data || [])]); setCleanerForm({ name: '', phone: '', email: '', agency_name: 'No agency' }); setShowForm(false); setErrors({}); setSaving(false) }
   async function saveAgency() { if (!validateAgency()) return; setSaving(true); const { data } = await supabase.from('agencies').insert({ name: agencyForm.name, contact_no: agencyForm.contact_no, email: agencyForm.email, address: agencyForm.address, trade: agencyForm.trade || null, website: agencyForm.website || null, details: agencyForm.details || null }).select(); setAgencies(prev => [...prev, ...(data || [])]); setAgencyForm({ name: '', contact_no: '', email: '', address: '', trade: '', website: '', details: '' }); setShowForm(false); setErrors({}); setSaving(false) }
 
-  const allTrades = [...new Set(vendors.map(v => v.trade).filter(Boolean))]
-  const filteredVendors = tradeFilter === 'all' ? vendors : vendors.filter(v => v.trade === tradeFilter)
+  const allTrades = ['all', ...new Set(vendors.map(v => v.trade).filter(Boolean)), 'Other']
+  const activeVendors = vendors.filter(v => !v.is_blocked)
+  const blockedVendors = vendors.filter(v => v.is_blocked)
+  const blockedCleaners = cleaners.filter(c => c.is_blocked)
+  const filteredVendors = (showBlocked ? blockedVendors : activeVendors).filter(v => tradeFilter === 'all' || v.trade === tradeFilter)
+  const filteredCleaners = showBlocked ? blockedCleaners : cleaners.filter(c => !c.is_blocked)
 
   if (loading) return <div className="empty-state">Loading...</div>
 
+  // Detail view — vendor
   if (selected && selectedType === 'vendor') return (
     <div>
-      <button onClick={() => { setSelected(null); setSelectedType(null) }} style={{ background: 'none', border: '1px solid #e0e0e0', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', marginBottom: 16, color: '#555' }}>← Back</button>
-      <div className="card" style={{ marginBottom: 16 }}><div style={{ display: 'flex', justifyContent: 'space-between' }}><div><div style={{ fontWeight: 700, fontSize: 18, marginBottom: 4 }}>{selected.name}</div><div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{selected.phone}</div><div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{selected.email}</div><div style={{ fontSize: 13, color: '#aaa' }}>{selected.agency_name !== 'No agency' ? `Agency: ${selected.agency_name}` : 'No agency'}</div></div><span style={{ padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 500, background: tradeColors[selected.trade] || tradeColors.Other, color: tradeText[selected.trade] || tradeText.Other }}>{selected.trade}</span></div></div>
+      <button onClick={() => { setSelected(null); setSelectedType(null); setEditMode(false) }} style={{ background: 'none', border: '1px solid #e0e0e0', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', marginBottom: 16, color: '#555' }}>← Back</button>
+
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 4 }}>{selected.name}</div>
+            {selected.is_blocked && <span className="badge badge-notready" style={{ marginBottom: 8, display: 'inline-block' }}>Blocked</span>}
+          </div>
+          <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 500, background: tradeColors[selected.trade] || tradeColors.Other, color: tradeText[selected.trade] || tradeText.Other, alignSelf: 'flex-start' }}>{selected.trade}</span>
+        </div>
+
+        {editMode ? (
+          <div>
+            <div className="form-group"><label className="label">Name</label><input className="input-field" value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} /></div>
+            <div className="form-group"><label className="label">Phone</label><input className="input-field" value={editForm.phone} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} /></div>
+            <div className="form-group"><label className="label">Email</label><input className="input-field" value={editForm.email} onChange={e => setEditForm({ ...editForm, email: e.target.value })} /></div>
+            <div className="form-group"><label className="label">Trade</label><select className="input-field" value={editForm.trade} onChange={e => setEditForm({ ...editForm, trade: e.target.value })}>{tradeOptions.map(t => <option key={t}>{t}</option>)}</select></div>
+            {editForm.trade === 'Other' && <div className="form-group"><label className="label">Specify trade</label><input className="input-field" value={editForm.other_trade || ''} onChange={e => setEditForm({ ...editForm, other_trade: e.target.value })} /></div>}
+            <div className="form-group"><label className="label">Agency</label><select className="input-field" value={editForm.agency_name} onChange={e => setEditForm({ ...editForm, agency_name: e.target.value })}><option value="No agency">No agency</option>{agencies.map(a => <option key={a.id} value={a.name}>{a.name}</option>)}</select></div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => setEditMode(false)} className="btn-secondary" style={{ flex: 1 }}>Cancel</button>
+              <button onClick={saveVendorEdit} className="btn-primary" disabled={saving} style={{ flex: 1 }}>{saving ? 'Saving...' : 'Save'}</button>
+            </div>
+          </div>
+        ) : (
+          <div>
+            <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{selected.phone}</div>
+            <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{selected.email}</div>
+            <div style={{ fontSize: 13, color: '#aaa', marginBottom: 12 }}>{selected.agency_name !== 'No agency' ? `Agency: ${selected.agency_name}` : 'No agency'}</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => { setEditMode(true); setEditForm({ name: selected.name, phone: selected.phone, email: selected.email, trade: selected.trade, agency_name: selected.agency_name }) }} className="btn-secondary" style={{ flex: 1, padding: '8px 12px', fontSize: 13 }}>Edit</button>
+              <button onClick={() => toggleBlock(selected, 'vendor')} style={{ flex: 1, padding: '8px 12px', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', background: selected.is_blocked ? '#dcfce7' : '#fee2e2', color: selected.is_blocked ? '#166534' : '#991b1b', border: 'none' }}>{selected.is_blocked ? 'Unblock' : 'Block'}</button>
+            </div>
+          </div>
+        )}
+      </div>
+
       <div style={{ fontWeight: 600, marginBottom: 12 }}>Issue history ({history.length})</div>
       {historyLoading && <div className="empty-state">Loading...</div>}
       {!historyLoading && !history.length && <div className="empty-state">No issues assigned yet.</div>}
@@ -467,10 +537,39 @@ function VendorDirectoryTab() {
     </div>
   )
 
+  // Detail view — cleaner
   if (selected && selectedType === 'cleaner') return (
     <div>
-      <button onClick={() => { setSelected(null); setSelectedType(null) }} style={{ background: 'none', border: '1px solid #e0e0e0', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', marginBottom: 16, color: '#555' }}>← Back</button>
-      <div className="card" style={{ marginBottom: 16 }}><div style={{ fontWeight: 700, fontSize: 18, marginBottom: 4 }}>{selected.name}</div><div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{selected.phone}</div><div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{selected.email}</div><div style={{ fontSize: 13, color: '#aaa' }}>{selected.agency_name !== 'No agency' ? `Agency: ${selected.agency_name}` : 'No agency'}</div></div>
+      <button onClick={() => { setSelected(null); setSelectedType(null); setEditMode(false) }} style={{ background: 'none', border: '1px solid #e0e0e0', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', marginBottom: 16, color: '#555' }}>← Back</button>
+
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 4 }}>{selected.name}</div>
+        {selected.is_blocked && <span className="badge badge-notready" style={{ marginBottom: 8, display: 'inline-block' }}>Blocked</span>}
+
+        {editMode ? (
+          <div style={{ marginTop: 8 }}>
+            <div className="form-group"><label className="label">Name</label><input className="input-field" value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} /></div>
+            <div className="form-group"><label className="label">Phone</label><input className="input-field" value={editForm.phone} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} /></div>
+            <div className="form-group"><label className="label">Email</label><input className="input-field" value={editForm.email} onChange={e => setEditForm({ ...editForm, email: e.target.value })} /></div>
+            <div className="form-group"><label className="label">Agency</label><select className="input-field" value={editForm.agency_name} onChange={e => setEditForm({ ...editForm, agency_name: e.target.value })}><option value="No agency">No agency</option>{agencies.map(a => <option key={a.id} value={a.name}>{a.name}</option>)}</select></div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => setEditMode(false)} className="btn-secondary" style={{ flex: 1 }}>Cancel</button>
+              <button onClick={saveCleanerEdit} className="btn-primary" disabled={saving} style={{ flex: 1 }}>{saving ? 'Saving...' : 'Save'}</button>
+            </div>
+          </div>
+        ) : (
+          <div>
+            <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{selected.phone}</div>
+            <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{selected.email}</div>
+            <div style={{ fontSize: 13, color: '#aaa', marginBottom: 12 }}>{selected.agency_name !== 'No agency' ? `Agency: ${selected.agency_name}` : 'No agency'}</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => { setEditMode(true); setEditForm({ name: selected.name, phone: selected.phone, email: selected.email, agency_name: selected.agency_name }) }} className="btn-secondary" style={{ flex: 1, padding: '8px 12px', fontSize: 13 }}>Edit</button>
+              <button onClick={() => toggleBlock(selected, 'cleaner')} style={{ flex: 1, padding: '8px 12px', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', background: selected.is_blocked ? '#dcfce7' : '#fee2e2', color: selected.is_blocked ? '#166534' : '#991b1b', border: 'none' }}>{selected.is_blocked ? 'Unblock' : 'Block'}</button>
+            </div>
+          </div>
+        )}
+      </div>
+
       <div style={{ fontWeight: 600, marginBottom: 12 }}>Job history ({history.length})</div>
       {historyLoading && <div className="empty-state">Loading...</div>}
       {!historyLoading && !history.length && <div className="empty-state">No jobs yet.</div>}
@@ -480,21 +579,31 @@ function VendorDirectoryTab() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {['vendors', 'cleaners', 'agencies'].map(t => <button key={t} onClick={() => { setTab(t); setShowForm(false); setErrors({}); setTradeFilter('all') }} style={{ padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', background: tab === t ? '#0a0a0a' : '#f0f0f0', color: tab === t ? '#fff' : '#555', border: 'none' }}>{t.charAt(0).toUpperCase() + t.slice(1)} ({(t === 'vendors' ? vendors : t === 'cleaners' ? cleaners : agencies).length})</button>)}
+      {/* Top controls */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <select className="input-field" style={{ padding: '8px 12px', fontSize: 13, maxWidth: 180 }} value={view} onChange={e => { setView(e.target.value); setShowForm(false); setTradeFilter('all'); setShowBlocked(false) }}>
+            <option value="vendors">Vendors ({vendors.length})</option>
+            <option value="cleaners">Cleaners ({cleaners.length})</option>
+            <option value="agencies">Agencies ({agencies.length})</option>
+          </select>
+          {view === 'vendors' && (
+            <select className="input-field" style={{ padding: '8px 12px', fontSize: 13, maxWidth: 180 }} value={tradeFilter} onChange={e => setTradeFilter(e.target.value)}>
+              <option value="all">All trades</option>
+              {[...new Set(vendors.map(v => v.trade).filter(Boolean))].map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          )}
         </div>
-        <button onClick={() => { setShowForm(!showForm); setErrors({}) }} className="btn-primary" style={{ width: 'auto', padding: '8px 14px', fontSize: 13 }}>{showForm ? 'Cancel' : `+ Add ${tab === 'vendors' ? 'vendor' : tab === 'cleaners' ? 'cleaner' : 'agency'}`}</button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {(view === 'vendors' || view === 'cleaners') && (
+            <button onClick={() => setShowBlocked(!showBlocked)} style={{ padding: '8px 12px', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', background: showBlocked ? '#fee2e2' : '#f0f0f0', color: showBlocked ? '#991b1b' : '#555', border: 'none' }}>{showBlocked ? 'Show active' : 'View blocked'}</button>
+          )}
+          <button onClick={() => { setShowForm(!showForm); setErrors({}) }} className="btn-primary" style={{ width: 'auto', padding: '8px 14px', fontSize: 13 }}>{showForm ? 'Cancel' : `+ Add ${view === 'vendors' ? 'vendor' : view === 'cleaners' ? 'cleaner' : 'agency'}`}</button>
+        </div>
       </div>
 
-      {tab === 'vendors' && (
-        <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
-          <button onClick={() => setTradeFilter('all')} style={{ padding: '5px 12px', borderRadius: 20, fontSize: 12, fontWeight: 500, cursor: 'pointer', background: tradeFilter === 'all' ? '#0a0a0a' : '#f0f0f0', color: tradeFilter === 'all' ? '#fff' : '#555', border: 'none' }}>All trades</button>
-          {allTrades.map(t => <button key={t} onClick={() => setTradeFilter(t)} style={{ padding: '5px 12px', borderRadius: 20, fontSize: 12, fontWeight: 500, cursor: 'pointer', background: tradeFilter === t ? (tradeColors[t] || '#f0f0f0') : '#f0f0f0', color: tradeFilter === t ? (tradeText[t] || '#555') : '#555', border: 'none' }}>{t}</button>)}
-        </div>
-      )}
-
-      {showForm && tab === 'vendors' && (
+      {/* Add forms */}
+      {showForm && view === 'vendors' && (
         <div className="card" style={{ marginBottom: 16 }}>
           <div style={{ fontWeight: 600, marginBottom: 16 }}>Add vendor</div>
           <div className="form-group"><label className="label">Name *</label><input className="input-field" placeholder="Full name" value={vendorForm.name} onChange={e => setVendorForm({ ...vendorForm, name: e.target.value })} /><FieldError msg={errors.name} /></div>
@@ -502,17 +611,11 @@ function VendorDirectoryTab() {
           <div className="form-group"><label className="label">Email *</label><input className="input-field" type="email" placeholder="email@example.com" value={vendorForm.email} onChange={e => setVendorForm({ ...vendorForm, email: e.target.value })} /><FieldError msg={errors.email} /></div>
           <div className="form-group"><label className="label">Trade *</label><select className="input-field" value={vendorForm.trade} onChange={e => setVendorForm({ ...vendorForm, trade: e.target.value })}>{tradeOptions.map(t => <option key={t}>{t}</option>)}</select></div>
           {vendorForm.trade === 'Other' && <div className="form-group"><label className="label">Specify trade *</label><input className="input-field" placeholder="e.g. Glazier, Locksmith..." value={vendorForm.other_trade} onChange={e => setVendorForm({ ...vendorForm, other_trade: e.target.value })} /><FieldError msg={errors.other_trade} /></div>}
-          <div className="form-group">
-            <label className="label">Agency</label>
-            <select className="input-field" value={vendorForm.agency_id} onChange={e => setVendorForm({ ...vendorForm, agency_id: e.target.value })}>
-              <option value="">No agency</option>
-              {agencies.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-            </select>
-          </div>
+          <div className="form-group"><label className="label">Agency</label><select className="input-field" value={vendorForm.agency_id} onChange={e => setVendorForm({ ...vendorForm, agency_id: e.target.value })}><option value="">No agency</option>{agencies.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></div>
           <button className="btn-primary" onClick={saveVendor} disabled={saving}>{saving ? 'Saving...' : 'Save vendor'}</button>
         </div>
       )}
-      {showForm && tab === 'cleaners' && (
+      {showForm && view === 'cleaners' && (
         <div className="card" style={{ marginBottom: 16 }}>
           <div style={{ fontWeight: 600, marginBottom: 16 }}>Add cleaner</div>
           <div className="form-group"><label className="label">Name *</label><input className="input-field" placeholder="Full name" value={cleanerForm.name} onChange={e => setCleanerForm({ ...cleanerForm, name: e.target.value })} /><FieldError msg={errors.name} /></div>
@@ -522,7 +625,7 @@ function VendorDirectoryTab() {
           <button className="btn-primary" onClick={saveCleaner} disabled={saving}>{saving ? 'Saving...' : 'Save cleaner'}</button>
         </div>
       )}
-      {showForm && tab === 'agencies' && (
+      {showForm && view === 'agencies' && (
         <div className="card" style={{ marginBottom: 16 }}>
           <div style={{ fontWeight: 600, marginBottom: 16 }}>Add agency</div>
           <div className="form-group"><label className="label">Agency name *</label><input className="input-field" placeholder="Agency name" value={agencyForm.name} onChange={e => setAgencyForm({ ...agencyForm, name: e.target.value })} /><FieldError msg={errors.name} /></div>
@@ -531,14 +634,80 @@ function VendorDirectoryTab() {
           <div className="form-group"><label className="label">Email</label><input className="input-field" type="email" placeholder="email@example.com" value={agencyForm.email} onChange={e => setAgencyForm({ ...agencyForm, email: e.target.value })} /><FieldError msg={errors.email} /></div>
           <div className="form-group"><label className="label">Address</label><input className="input-field" placeholder="Full address" value={agencyForm.address} onChange={e => setAgencyForm({ ...agencyForm, address: e.target.value })} /></div>
           <div className="form-group"><label className="label">Website (optional)</label><input className="input-field" placeholder="https://example.com" value={agencyForm.website} onChange={e => setAgencyForm({ ...agencyForm, website: e.target.value })} /></div>
-          <div className="form-group"><label className="label">Details (optional)</label><textarea className="input-field" rows={3} placeholder="Additional notes about this agency..." value={agencyForm.details} onChange={e => setAgencyForm({ ...agencyForm, details: e.target.value })} /></div>
+          <div className="form-group"><label className="label">Details (optional)</label><textarea className="input-field" rows={3} placeholder="Additional notes..." value={agencyForm.details} onChange={e => setAgencyForm({ ...agencyForm, details: e.target.value })} /></div>
           <button className="btn-primary" onClick={saveAgency} disabled={saving}>{saving ? 'Saving...' : 'Save agency'}</button>
         </div>
       )}
 
-      {tab === 'vendors' && <div style={{ display: 'grid', gap: 10 }}>{!filteredVendors.length && <div className="empty-state">No vendors found.</div>}{filteredVendors.map(v => <div key={v.id} className="card" style={{ padding: '14px 16px', cursor: 'pointer' }} onClick={() => openVendor(v)}><div style={{ display: 'flex', justifyContent: 'space-between' }}><div><div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>{v.name}</div><div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{v.phone}</div><div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{v.email}</div><div style={{ fontSize: 13, color: '#aaa' }}>{v.agency_name !== 'No agency' ? `Agency: ${v.agency_name}` : 'No agency'}</div></div><div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}><span style={{ padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 500, background: tradeColors[v.trade] || tradeColors.Other, color: tradeText[v.trade] || tradeText.Other }}>{v.trade}</span><span style={{ fontSize: 12, color: '#aaa' }}>History →</span></div></div></div>)}</div>}
-      {tab === 'cleaners' && <div style={{ display: 'grid', gap: 10 }}>{!cleaners.length && <div className="empty-state">No cleaners yet.</div>}{cleaners.map(c => <div key={c.id} className="card" style={{ padding: '14px 16px', cursor: 'pointer' }} onClick={() => openCleaner(c)}><div style={{ display: 'flex', justifyContent: 'space-between' }}><div><div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>{c.name}</div><div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{c.phone}</div><div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{c.email}</div><div style={{ fontSize: 13, color: '#aaa' }}>{c.agency_name !== 'No agency' ? `Agency: ${c.agency_name}` : 'No agency'}</div></div><span style={{ fontSize: 12, color: '#aaa' }}>History →</span></div></div>)}</div>}
-      {tab === 'agencies' && <div style={{ display: 'grid', gap: 10 }}>{!agencies.length && <div className="empty-state">No agencies yet.</div>}{agencies.map(a => <div key={a.id} className="card" style={{ padding: '14px 16px' }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}><div><div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>{a.name}</div><div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{a.contact_no}</div><div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{a.email}</div><div style={{ fontSize: 13, color: '#aaa', marginBottom: 2 }}>{a.address}</div>{a.website && <a href={a.website} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#2563eb' }}>{a.website}</a>}{a.details && <div style={{ fontSize: 12, color: '#aaa', marginTop: 4 }}>{a.details}</div>}</div>{a.trade && <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 500, background: '#f0f0f0', color: '#444' }}>{a.trade}</span>}</div></div>)}</div>}
+      {/* Vendor list */}
+      {view === 'vendors' && (
+        <div style={{ display: 'grid', gap: 10 }}>
+          {showBlocked && <div style={{ fontSize: 13, color: '#dc2626', marginBottom: 4 }}>Showing blocked vendors ({blockedVendors.length})</div>}
+          {!filteredVendors.length && <div className="empty-state">{showBlocked ? 'No blocked vendors.' : 'No vendors found.'}</div>}
+          {filteredVendors.map(v => (
+            <div key={v.id} className="card" style={{ padding: '14px 16px', cursor: 'pointer', opacity: v.is_blocked ? 0.7 : 1 }} onClick={() => openVendor(v)}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <div style={{ fontWeight: 600, fontSize: 15 }}>{v.name}</div>
+                    {v.is_blocked && <span className="badge badge-notready" style={{ fontSize: 11 }}>Blocked</span>}
+                  </div>
+                  <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{v.phone}</div>
+                  <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{v.email}</div>
+                  <div style={{ fontSize: 13, color: '#aaa' }}>{v.agency_name !== 'No agency' ? `Agency: ${v.agency_name}` : 'No agency'}</div>
+                </div>
+                <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 500, background: tradeColors[v.trade] || tradeColors.Other, color: tradeText[v.trade] || tradeText.Other, whiteSpace: 'nowrap', alignSelf: 'flex-start' }}>{v.trade}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Cleaner list */}
+      {view === 'cleaners' && (
+        <div style={{ display: 'grid', gap: 10 }}>
+          {showBlocked && <div style={{ fontSize: 13, color: '#dc2626', marginBottom: 4 }}>Showing blocked cleaners ({blockedCleaners.length})</div>}
+          {!filteredCleaners.length && <div className="empty-state">{showBlocked ? 'No blocked cleaners.' : 'No cleaners yet.'}</div>}
+          {filteredCleaners.map(c => (
+            <div key={c.id} className="card" style={{ padding: '14px 16px', cursor: 'pointer', opacity: c.is_blocked ? 0.7 : 1 }} onClick={() => openCleaner(c)}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <div style={{ fontWeight: 600, fontSize: 15 }}>{c.name}</div>
+                    {c.is_blocked && <span className="badge badge-notready" style={{ fontSize: 11 }}>Blocked</span>}
+                  </div>
+                  <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{c.phone}</div>
+                  <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{c.email}</div>
+                  <div style={{ fontSize: 13, color: '#aaa' }}>{c.agency_name !== 'No agency' ? `Agency: ${c.agency_name}` : 'No agency'}</div>
+                </div>
+                <span style={{ fontSize: 12, color: '#aaa' }}>→</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Agency list */}
+      {view === 'agencies' && (
+        <div style={{ display: 'grid', gap: 10 }}>
+          {!agencies.length && <div className="empty-state">No agencies yet.</div>}
+          {agencies.map(a => (
+            <div key={a.id} className="card" style={{ padding: '14px 16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>{a.name}</div>
+                  <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{a.contact_no}</div>
+                  <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{a.email}</div>
+                  <div style={{ fontSize: 13, color: '#aaa', marginBottom: 2 }}>{a.address}</div>
+                  {a.website && <a href={a.website} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#2563eb' }}>{a.website}</a>}
+                  {a.details && <div style={{ fontSize: 12, color: '#aaa', marginTop: 4 }}>{a.details}</div>}
+                </div>
+                {a.trade && <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 500, background: '#f0f0f0', color: '#444', whiteSpace: 'nowrap', alignSelf: 'flex-start' }}>{a.trade}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
