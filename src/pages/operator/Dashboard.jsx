@@ -73,7 +73,7 @@ function PropertyProfileTab() {
   const [saving, setSaving] = useState(false)
   const [savingComp, setSavingComp] = useState(false)
   const [errors, setErrors] = useState({})
-  const [form, setForm] = useState({ name: '', address: '', bedroom: '', next_checkin: '', access_code: '', linen_location: '', appliance_notes: '', assigned_cleaner_id: '' })
+  const [form, setForm] = useState({ name: '', house_no: '', address_line1: '', address_line2: '', postcode: '', city: '', country: 'United Kingdom', bedroom: '', next_checkin: '', access_code: '', linen_location: '', appliance_notes: '', knowledge_base_file: null })
   const [compForm, setCompForm] = useState({ document_type: '', issue_date: '', expiry_date: '', file: null })
   const docTypes = ['Gas Safety Record (CP12)', 'EICR', 'EPC', 'Public Liability Insurance', 'Fire Risk Assessment']
 
@@ -101,7 +101,10 @@ function PropertyProfileTab() {
   function validateForm() {
     const e = {}
     if (!required(form.name)) e.name = 'Property name is required'
-    if (!required(form.address)) e.address = 'Address is required'
+    if (!required(form.house_no)) e.house_no = 'House or flat number is required'
+    if (!required(form.address_line1)) e.address_line1 = 'Street address is required'
+    if (!required(form.postcode)) e.postcode = 'Postcode is required'
+    if (!required(form.city)) e.city = 'City is required'
     if (!required(form.bedroom) || isNaN(form.bedroom) || parseInt(form.bedroom) < 1) e.bedroom = 'Enter a valid number of bedrooms'
     setErrors(e); return Object.keys(e).length === 0
   }
@@ -109,9 +112,15 @@ function PropertyProfileTab() {
   async function saveProperty() {
     if (!validateForm()) return
     setSaving(true)
-    const { data } = await supabase.from('Properties').insert({ name: form.name.trim(), address: form.address.trim(), bedroom: parseInt(form.bedroom), next_checkin: form.next_checkin || null, access_code: form.access_code.trim() || null, linen_location: form.linen_location.trim() || null, appliance_notes: form.appliance_notes.trim() || null, assigned_cleaner_id: form.assigned_cleaner_id || null, readiness_status: 'Not Ready' }).select()
+    const addressParts = [form.house_no.trim(), form.address_line1.trim()]
+    if (form.address_line2.trim()) addressParts.push(form.address_line2.trim())
+    addressParts.push(form.city.trim(), form.postcode.trim().toUpperCase(), form.country)
+    const fullAddress = addressParts.join(', ')
+    let kbUrl = null
+    if (form.knowledge_base_file) kbUrl = await uploadFile(form.knowledge_base_file, 'knowledge-base')
+    const { data } = await supabase.from('Properties').insert({ name: form.name.trim(), address: fullAddress, bedroom: parseInt(form.bedroom), next_checkin: form.next_checkin || null, access_code: form.access_code.trim() || null, linen_location: form.linen_location.trim() || null, appliance_notes: form.appliance_notes.trim() || null, readiness_status: 'Not Ready', knowledge_base_url: kbUrl }).select()
     setProperties(prev => [...prev, ...(data || [])])
-    setForm({ name: '', address: '', bedroom: '', next_checkin: '', access_code: '', linen_location: '', appliance_notes: '', assigned_cleaner_id: '' })
+    setForm({ name: '', house_no: '', address_line1: '', address_line2: '', postcode: '', city: '', country: 'United Kingdom', bedroom: '', next_checkin: '', access_code: '', linen_location: '', appliance_notes: '', knowledge_base_file: null })
     setShowAddForm(false); setErrors({}); setSaving(false)
   }
 
@@ -140,13 +149,22 @@ function PropertyProfileTab() {
 
     return (
       <div>
-        <button onClick={() => { setSelected(null); setDetailData(null); setShowCompForm(false) }} style={{ background: 'none', border: '1px solid #e0e0e0', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', marginBottom: 16, color: '#555' }}>← Back to properties</button>
+        <button onClick={() => { setSelected(null); setDetailData(null); setShowCompForm(false); setShowJobHistory(false); setShowIssueHistory(false) }} style={{ background: 'none', border: '1px solid #e0e0e0', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', marginBottom: 16, color: '#555' }}>← Back to properties</button>
         <div className="card" style={{ marginBottom: 12 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div><div style={{ fontWeight: 700, fontSize: 20, marginBottom: 4 }}>{selected.name}</div><div style={{ fontSize: 14, color: '#888', marginBottom: 8 }}>{selected.address}</div><div style={{ fontSize: 13, color: '#aaa' }}>{selected.bedroom} bed · Check-in: {selected.next_checkin ? new Date(selected.next_checkin).toLocaleDateString('en-GB') : 'Not set'}</div></div>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}><StatusBadge status={calculatedStatus} /><span style={{ fontSize: 11, color: '#aaa' }}>Auto-calculated</span></div>
           </div>
         </div>
+        {enrichedComp.length === 0 && (
+          <div style={{ background: '#fff8ed', border: '1px solid #fed7aa', borderRadius: 10, padding: '12px 16px', marginBottom: 12, display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+            <span style={{ fontSize: 18 }}>⚠️</span>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 14, color: '#92400e', marginBottom: 2 }}>No compliance documents added</div>
+              <div style={{ fontSize: 13, color: '#b45309' }}>This property has no Gas Safety, EICR, EPC, Insurance, or Fire Risk Assessment documents uploaded. Scroll down to add them.</div>
+            </div>
+          </div>
+        )}
         <div className="card" style={{ marginBottom: 12 }}>
           <div style={{ fontWeight: 600, marginBottom: 12 }}>Readiness Breakdown</div>
           {[{ label: 'Cleaning', badge: !lastJob ? 'badge-notready' : lastJob.status === 'Complete' ? 'badge-ready' : 'badge-atrisk', text: !lastJob ? 'No job recorded' : lastJob.status }, { label: 'Open issues', badge: openIssues.some(i => i.severity === 'Critical') ? 'badge-notready' : openIssues.some(i => i.severity === 'High') ? 'badge-atrisk' : openIssues.length > 0 ? 'badge-duesoon' : 'badge-ready', text: openIssues.length > 0 ? `${openIssues.length} open` : 'All clear' }, { label: 'Inventory', badge: restock.some(r => r.needs_restock) ? 'badge-atrisk' : 'badge-ready', text: restock.some(r => r.needs_restock) ? `${restock.filter(r => r.needs_restock).length} need restock` : 'All stocked' }, { label: 'Compliance', badge: expiredDocs.length > 0 ? 'badge-notready' : dueSoonDocs.length > 0 ? 'badge-atrisk' : 'badge-ready', text: expiredDocs.length > 0 ? `${expiredDocs.length} expired` : dueSoonDocs.length > 0 ? `${dueSoonDocs.length} due soon` : 'All valid' }].map(row => (
@@ -160,6 +178,12 @@ function PropertyProfileTab() {
           {[['Access code', selected.access_code, 'monospace', 18, 700], ['Linen location', selected.linen_location, null, 14, 400], ['Appliance notes', selected.appliance_notes, null, 14, 400]].map(([label, val, font, size, weight]) => (
             <div key={label} style={{ marginBottom: 8 }}><div style={{ fontSize: 11, color: '#aaa', marginBottom: 2 }}>{label}</div><div style={{ fontSize: size, fontWeight: weight, fontFamily: font || 'inherit' }}>{val || 'Not set'}</div></div>
           ))}
+          {selected.knowledge_base_url && (
+            <div style={{ marginTop: 8 }}>
+              <div style={{ fontSize: 11, color: '#aaa', marginBottom: 4 }}>Knowledge base document</div>
+              <a href={selected.knowledge_base_url} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: '#2563eb', fontWeight: 500 }}>📄 View knowledge base PDF →</a>
+            </div>
+          )}
         </div>
         <div className="card" style={{ marginBottom: 12 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
@@ -218,14 +242,26 @@ function PropertyProfileTab() {
       {showAddForm && (
         <div className="card" style={{ marginBottom: 16 }}>
           <div style={{ fontWeight: 600, marginBottom: 16 }}>Add new property</div>
-          <div className="form-group"><label className="label">Property name *</label><input className="input-field" placeholder="e.g. The Mill House" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /><FieldError msg={errors.name} /></div>
-          <div className="form-group"><label className="label">Address *</label><input className="input-field" placeholder="Full address including postcode" value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} /><FieldError msg={errors.address} /></div>
+              <div className="form-group"><label className="label">Property name *</label><input className="input-field" placeholder="e.g. The Mill House" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /><FieldError msg={errors.name} /></div>
+
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#444', margin: '8px 0 12px' }}>Address</div>
+          <div className="form-group"><label className="label">House / flat number *</label><input className="input-field" placeholder="e.g. 12 or Flat 4B" value={form.house_no} onChange={e => setForm({ ...form, house_no: e.target.value })} /><FieldError msg={errors.house_no} /></div>
+          <div className="form-group"><label className="label">Street (Address line 1) *</label><input className="input-field" placeholder="e.g. Mill Lane" value={form.address_line1} onChange={e => setForm({ ...form, address_line1: e.target.value })} /><FieldError msg={errors.address_line1} /></div>
+          <div className="form-group"><label className="label">Address line 2 (optional)</label><input className="input-field" placeholder="e.g. Headingley" value={form.address_line2} onChange={e => setForm({ ...form, address_line2: e.target.value })} /></div>
+          <div className="form-group"><label className="label">City *</label><input className="input-field" placeholder="e.g. Leeds" value={form.city} onChange={e => setForm({ ...form, city: e.target.value })} /><FieldError msg={errors.city} /></div>
+          <div className="form-group"><label className="label">Postcode *</label><input className="input-field" placeholder="e.g. LS1 5DQ" value={form.postcode} onChange={e => setForm({ ...form, postcode: e.target.value })} style={{ textTransform: 'uppercase' }} /><FieldError msg={errors.postcode} /></div>
+          <div className="form-group"><label className="label">Country</label><input className="input-field" value={form.country} onChange={e => setForm({ ...form, country: e.target.value })} /></div>
+
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#444', margin: '8px 0 12px' }}>Property details</div>
           <div className="form-group"><label className="label">Bedrooms *</label><input className="input-field" type="number" min="1" placeholder="e.g. 2" value={form.bedroom} onChange={e => setForm({ ...form, bedroom: e.target.value })} /><FieldError msg={errors.bedroom} /></div>
           <div className="form-group"><label className="label">Next check-in date and time</label><input className="input-field" type="datetime-local" value={form.next_checkin} onChange={e => setForm({ ...form, next_checkin: e.target.value })} /></div>
+
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#444', margin: '8px 0 12px' }}>Knowledge base</div>
           <div className="form-group"><label className="label">Access code</label><input className="input-field" placeholder="e.g. 4521#" value={form.access_code} onChange={e => setForm({ ...form, access_code: e.target.value })} /></div>
           <div className="form-group"><label className="label">Linen location</label><input className="input-field" placeholder="e.g. Airing cupboard on landing" value={form.linen_location} onChange={e => setForm({ ...form, linen_location: e.target.value })} /></div>
           <div className="form-group"><label className="label">Appliance notes</label><textarea className="input-field" rows={3} placeholder="Boiler location, special instructions..." value={form.appliance_notes} onChange={e => setForm({ ...form, appliance_notes: e.target.value })} /></div>
-          <div className="form-group"><label className="label">Assign cleaner</label><select className="input-field" value={form.assigned_cleaner_id} onChange={e => setForm({ ...form, assigned_cleaner_id: e.target.value })}><option value="">Select cleaner</option>{cleaners.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+          <div className="form-group"><label className="label">Upload knowledge base (PDF, optional)</label><input type="file" accept=".pdf" className="input-field" style={{ padding: '8px' }} onChange={e => setForm({ ...form, knowledge_base_file: e.target.files[0] })} />{form.knowledge_base_file && <div style={{ fontSize: 12, color: '#16a34a', marginTop: 4 }}>✓ {form.knowledge_base_file.name}</div>}</div>
+
           <button className="btn-primary" onClick={saveProperty} disabled={saving}>{saving ? 'Saving...' : 'Save property'}</button>
         </div>
       )}
