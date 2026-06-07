@@ -1,6 +1,13 @@
 // OpsLoom Operator Dashboard — updated
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
+import { createClient } from '@supabase/supabase-js'
+
+// Admin client for creating auth users
+const adminSupabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY
+)
 
 // ── SHARED HELPERS ────────────────────────────────────────────────────
 function NavTab({ label, active, onClick }) {
@@ -990,6 +997,14 @@ function VendorDirectoryTab() {
             </div>
           )}
         </div>
+        {/* Access section — only for cleaners */}
+        {selectedType === 'cleaner' && (
+          <CleanerAccessSection cleaner={selected} onUpdate={updatedCleaner => {
+            setSelected(updatedCleaner)
+            setCleaners(prev => prev.map(c => c.id === updatedCleaner.id ? updatedCleaner : c))
+          }} />
+        )}
+
         <div style={{ fontWeight: 600, marginBottom: 12 }}>{selectedType === 'vendor' ? 'Issue history' : 'Job history'} ({history.length})</div>
         {historyLoading && <div className="empty-state">Loading...</div>}
         {!historyLoading && !history.length && <div className="empty-state">No history yet.</div>}
@@ -1627,6 +1642,147 @@ function JobsTab({ onCreateJob }) {
       <div style={{ display: 'grid', gap: 10 }}>
         {filtered.map(job => <div key={job.id} className="card"><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}><div><div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>{properties.find(p => String(p.id) === String(job.property_id))?.name || '—'}</div><div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>Cleaner: {cleaners.find(c => String(c.id) === String(job.cleaner_id))?.name || '—'}</div><div style={{ fontSize: 13, color: '#888' }}>Date: {job.job_date ? new Date(job.job_date).toLocaleDateString('en-GB') : '—'}{job.checkin_time && ` · Check-in: ${new Date(job.checkin_time).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`}</div>{job.notes && <div style={{ fontSize: 13, color: '#aaa', marginTop: 4 }}>Note: {job.notes}</div>}</div><span className={`badge ${job.status === 'Complete' ? 'badge-ready' : job.status === 'In progress' ? 'badge-atrisk' : 'badge-notready'}`}>{job.status || 'Not started'}</span></div><div style={{ height: 6, background: '#f0f0f0', borderRadius: 3 }}><div style={{ height: 6, borderRadius: 3, width: `${job.readiness_percent || 0}%`, background: job.readiness_percent === 100 ? '#16a34a' : '#d97706' }} /></div><div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>{job.readiness_percent || 0}% · {job.completed_tasks || 0}/{job.total_tasks || 0} tasks</div></div>)}
       </div>
+    </div>
+  )
+}
+
+// ── CLEANER ACCESS SECTION ───────────────────────────────────────────
+function CleanerAccessSection({ cleaner, onUpdate }) {
+  const [showCreateLogin, setShowCreateLogin] = useState(false)
+  const [loginForm, setLoginForm] = useState({ email: cleaner.email || '', password: '' })
+  const [creating, setCreating] = useState(false)
+  const [loginError, setLoginError] = useState('')
+  const [loginSuccess, setLoginSuccess] = useState(false)
+  const [generatingLink, setGeneratingLink] = useState(false)
+  const [magicLink, setMagicLink] = useState('')
+  const [copied, setCopied] = useState(false)
+
+  async function createLogin() {
+    if (!loginForm.email || !loginForm.password) { setLoginError('Email and password are required'); return }
+    if (loginForm.password.length < 6) { setLoginError('Password must be at least 6 characters'); return }
+    setCreating(true); setLoginError('')
+    try {
+      const { data, error } = await adminSupabase.auth.admin.createUser({
+        email: loginForm.email,
+        password: loginForm.password,
+        user_metadata: { role: 'cleaner' },
+        email_confirm: true,
+      })
+      if (error) { setLoginError(error.message); setCreating(false); return }
+      const { data: updated } = await supabase.from('Cleaners').update({ auth_user_id: data.user.id, email: loginForm.email }).eq('id', cleaner.id).select().single()
+      setLoginSuccess(true); setShowCreateLogin(false); setCreating(false)
+      if (onUpdate && updated) onUpdate(updated)
+    } catch (err) { setLoginError(err.message); setCreating(false) }
+  }
+
+  async function generateMagicLink() {
+    setGeneratingLink(true)
+    // Find most recent upcoming job for this cleaner
+    const { data: jobs } = await supabase.from('jobs').select('*').eq('cleaner_id', cleaner.id).order('job_date', { ascending: false }).limit(1)
+    if (!jobs || !jobs.length) {
+      alert('No jobs found for this cleaner. Create a job first.'); setGeneratingLink(false); return
+    }
+    const job = jobs[0]
+    const token = crypto.randomUUID()
+    const expires = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString()
+    await supabase.from('jobs').update({ magic_link_token: token, magic_link_expires_at: expires }).eq('id', job.id)
+    const link = `${window.location.origin}/job/${token}`
+    setMagicLink(link); setGeneratingLink(false)
+  }
+
+  async function copyLink() {
+    await navigator.clipboard.writeText(magicLink)
+    setCopied(true); setTimeout(() => setCopied(false), 2000)
+  }
+
+  const hasLogin = !!cleaner.auth_user_id
+
+  return (
+    <div className="card" style={{ marginBottom: 16 }}>
+      <div style={{ fontWeight: 600, marginBottom: 12 }}>Access</div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+        {hasLogin
+          ? <span style={{ fontSize: 12, background: '#dcfce7', color: '#166534', padding: '4px 12px', borderRadius: 20, fontWeight: 500 }}>✓ Has login account</span>
+          : <span style={{ fontSize: 12, background: '#f0f0f0', color: '#888', padding: '4px 12px', borderRadius: 20 }}>No login yet</span>
+        }
+      </div>
+
+      {loginSuccess && <div style={{ background: '#dcfce7', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: 13, color: '#166534' }}>✓ Login created. Share credentials with the cleaner.</div>}
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: showCreateLogin ? 12 : 0 }}>
+        {!hasLogin && (
+          <button onClick={() => setShowCreateLogin(!showCreateLogin)} style={{ flex: 1, padding: '10px', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', border: '1px solid #e0e0e0', background: showCreateLogin ? '#f0f0f0' : '#fff', color: '#0a0a0a' }}>
+            {showCreateLogin ? 'Cancel' : '+ Create login'}
+          </button>
+        )}
+        <button onClick={generateMagicLink} disabled={generatingLink} style={{ flex: 1, padding: '10px', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', background: '#0a0a0a', color: '#fff', border: 'none' }}>
+          {generatingLink ? 'Generating...' : '🔗 Magic link'}
+        </button>
+      </div>
+
+      {showCreateLogin && (
+        <div style={{ background: '#f7f7f7', borderRadius: 8, padding: 14, marginBottom: 12 }}>
+          <div style={{ fontSize: 13, color: '#888', marginBottom: 10 }}>Create a login for this cleaner. Share these credentials with them.</div>
+          {loginError && <div style={{ background: '#fee2e2', borderRadius: 6, padding: '8px 12px', marginBottom: 10, fontSize: 12, color: '#dc2626' }}>{loginError}</div>}
+          <div className="form-group"><label className="label">Email</label><input className="input-field" type="email" value={loginForm.email} onChange={e => setLoginForm({ ...loginForm, email: e.target.value })} placeholder="cleaner@email.com" /></div>
+          <div className="form-group"><label className="label">Temporary password</label><input className="input-field" type="password" value={loginForm.password} onChange={e => setLoginForm({ ...loginForm, password: e.target.value })} placeholder="Min 6 characters" /></div>
+          <button onClick={createLogin} disabled={creating} className="btn-primary">{creating ? 'Creating...' : 'Create login'}</button>
+        </div>
+      )}
+
+      {magicLink && (
+        <div style={{ background: '#f0f9ff', borderRadius: 8, padding: 14, marginTop: 12, border: '1px solid #bae6fd' }}>
+          <div style={{ fontSize: 12, color: '#0369a1', marginBottom: 6, fontWeight: 500 }}>Magic link ready — expires in 48 hours</div>
+          <div style={{ fontSize: 12, color: '#555', wordBreak: 'break-all', marginBottom: 10, background: '#fff', padding: '8px 10px', borderRadius: 6, border: '1px solid #e0e0e0' }}>{magicLink}</div>
+          <button onClick={copyLink} style={{ width: '100%', padding: '10px', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', background: copied ? '#dcfce7' : '#0a0a0a', color: copied ? '#166534' : '#fff', border: 'none' }}>
+            {copied ? '✓ Copied!' : 'Copy link'}
+          </button>
+          <div style={{ fontSize: 11, color: '#aaa', marginTop: 8, textAlign: 'center' }}>Send via WhatsApp or SMS to the cleaner</div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── JOB MAGIC LINK ────────────────────────────────────────────────────
+function JobMagicLink({ job, onUpdate }) {
+  const [generating, setGenerating] = useState(false)
+  const [link, setLink] = useState(job.magic_link_token ? `${window.location.origin}/job/${job.magic_link_token}` : '')
+  const [copied, setCopied] = useState(false)
+  const [showLink, setShowLink] = useState(false)
+
+  async function generate() {
+    setGenerating(true)
+    const token = crypto.randomUUID()
+    const expires = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString()
+    const { data } = await supabase.from('jobs').update({ magic_link_token: token, magic_link_expires_at: expires }).eq('id', job.id).select().single()
+    const url = `${window.location.origin}/job/${token}`
+    setLink(url); setShowLink(true); setGenerating(false)
+    if (onUpdate && data) onUpdate(data)
+  }
+
+  async function copy() {
+    await navigator.clipboard.writeText(link)
+    setCopied(true); setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <div style={{ marginTop: 10 }}>
+      {!showLink && (
+        <button onClick={generate} disabled={generating} style={{ fontSize: 12, color: '#2563eb', background: 'none', border: '1px solid #bfdbfe', borderRadius: 6, padding: '5px 12px', cursor: 'pointer', fontWeight: 500 }}>
+          {generating ? 'Generating...' : '🔗 Generate cleaner link'}
+        </button>
+      )}
+      {link && showLink && (
+        <div style={{ background: '#f0f9ff', borderRadius: 8, padding: 10, border: '1px solid #bae6fd', marginTop: 4 }}>
+          <div style={{ fontSize: 11, color: '#0369a1', marginBottom: 4 }}>Send this link to the cleaner</div>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <div style={{ fontSize: 11, color: '#555', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{link}</div>
+            <button onClick={copy} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 500, cursor: 'pointer', background: copied ? '#dcfce7' : '#0a0a0a', color: copied ? '#166534' : '#fff', border: 'none', whiteSpace: 'nowrap' }}>{copied ? '✓ Copied' : 'Copy'}</button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

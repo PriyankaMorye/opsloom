@@ -6,6 +6,7 @@ import OperatorDashboard from './pages/operator/Dashboard'
 import CreateJob from './pages/operator/CreateJob'
 import CleanerDashboard from './pages/cleaner/Dashboard'
 import VendorDashboard from './pages/vendor/Dashboard'
+import MagicLinkJob from './pages/cleaner/MagicLinkJob'
 
 function OperatorApp() {
   const [view, setView] = useState('dashboard')
@@ -49,6 +50,16 @@ export default function App() {
     return () => subscription.unsubscribe()
   }, [])
 
+  // Public routes — always accessible, no login needed
+  const path = window.location.pathname
+  if (path.startsWith('/job/')) {
+    return (
+      <Routes>
+        <Route path="/job/:token" element={<MagicLinkJob />} />
+      </Routes>
+    )
+  }
+
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
       <div style={{ textAlign: 'center' }}>
@@ -61,6 +72,7 @@ export default function App() {
   if (!session) return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/job/:token" element={<MagicLinkJob />} />
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   )
@@ -85,6 +97,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/vendor" replace />} />
         </>
       )}
+      <Route path="/job/:token" element={<MagicLinkJob />} />
     </Routes>
   )
 }
