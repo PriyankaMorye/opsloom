@@ -402,6 +402,11 @@ function PropertyProfileTab() {
   const [editSection, setEditSection] = useState(null)
   const [editForm, setEditForm] = useState({})
   const [editInventory, setEditInventory] = useState([])
+  const [editAmenities, setEditAmenities] = useState([])
+  const [showKB, setShowKB] = useState(true)
+  const [showInv, setShowInv] = useState(true)
+  const [showCompSection, setShowCompSection] = useState(true)
+  const [invSort, setInvSort] = useState('default')
   const [editKB, setEditKB] = useState({})
   const [saving, setSaving] = useState(false)
   const [savingComp, setSavingComp] = useState(false)
@@ -447,6 +452,12 @@ function PropertyProfileTab() {
     setSelected(data); setProperties(prev => prev.map(p => p.id === selected.id ? data : p)); setEditSection(null); setSaving(false)
   }
 
+  async function saveAmenities() {
+    setSaving(true)
+    const { data } = await supabase.from('Properties').update({ amenities: JSON.stringify(editAmenities) }).eq('id', selected.id).select().single()
+    setSelected(data); setProperties(prev => prev.map(p => p.id === selected.id ? data : p)); setEditSection(null); setSaving(false)
+  }
+
   async function saveKBEdits() {
     setSaving(true)
     const { data } = await supabase.from('Properties').update({ knowledge_base: JSON.stringify(editKB) }).eq('id', selected.id).select().single()
@@ -481,17 +492,7 @@ function PropertyProfileTab() {
   const activeProps = properties.filter(p => (!p.property_status || p.property_status === 'active') && (p.name?.toLowerCase().includes(search.toLowerCase()) || p.address?.toLowerCase().includes(search.toLowerCase())))
   const inactiveProps = properties.filter(p => p.property_status === 'paused' || p.property_status === 'deleted')
 
-  if (confirmAction) return (
-    <div><div className="card" style={{ maxWidth: 500 }}>
-      <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 8 }}>{confirmAction.type === 'pause' ? 'Pause property?' : 'Delete property?'}</div>
-      <div style={{ fontSize: 14, color: '#888', marginBottom: 16 }}>{confirmAction.type === 'pause' ? 'This property will be hidden from active operations until restored.' : 'This property will be marked as deleted.'}</div>
-      <div className="form-group"><label className="label">Reason *</label><textarea className="input-field" rows={3} placeholder={`Reason for ${confirmAction.type}...`} value={confirmAction.reason} onChange={e => setConfirmAction({ ...confirmAction, reason: e.target.value })} /></div>
-      <div style={{ display: 'flex', gap: 10 }}>
-        <button onClick={() => setConfirmAction(null)} className="btn-secondary" style={{ flex: 1 }}>Cancel</button>
-        <button onClick={applyAction} disabled={!required(confirmAction.reason) || saving} style={{ flex: 1, padding: 12, borderRadius: 8, fontWeight: 500, fontSize: 14, cursor: 'pointer', background: confirmAction.type === 'pause' ? '#fef3c7' : '#fee2e2', color: confirmAction.type === 'pause' ? '#92400e' : '#991b1b', border: 'none' }}>{saving ? 'Applying...' : confirmAction.type === 'pause' ? 'Pause property' : 'Delete property'}</button>
-      </div>
-    </div></div>
-  )
+
 
   if (selected) {
     if (detailLoading) return <div><button onClick={() => setSelected(null)} style={{ background: 'none', border: '1px solid #e0e0e0', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', marginBottom: 16, color: '#555' }}>← Back</button><div className="empty-state">Loading...</div></div>
@@ -506,13 +507,7 @@ function PropertyProfileTab() {
 
     return (
       <div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <button onClick={() => { setSelected(null); setDetailData(null); setEditSection(null) }} style={{ background: 'none', border: '1px solid #e0e0e0', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', color: '#555' }}>← Back</button>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => setConfirmAction({ type: 'pause', reason: '' })} style={{ padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', background: '#fef3c7', color: '#92400e', border: 'none' }}>Pause</button>
-            <button onClick={() => setConfirmAction({ type: 'delete', reason: '' })} style={{ padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', background: '#fee2e2', color: '#991b1b', border: 'none' }}>Delete</button>
-          </div>
-        </div>
+        <button onClick={() => { setSelected(null); setDetailData(null); setEditSection(null) }} style={{ background: 'none', border: '1px solid #e0e0e0', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', color: '#555', marginBottom: 16 }}>← Back to properties</button>
 
         {enrichedComp.length === 0 && <div style={{ background: '#fff8ed', border: '0.5px solid #fed7aa', borderRadius: 10, padding: '12px 16px', marginBottom: 12, display: 'flex', alignItems: 'flex-start', gap: 10 }}><span style={{ fontSize: 18 }}>⚠️</span><div><div style={{ fontWeight: 600, fontSize: 14, color: '#92400e', marginBottom: 2 }}>No compliance documents added</div><div style={{ fontSize: 13, color: '#b45309' }}>Gas Safety, EICR, EPC, Insurance, or Fire Risk Assessment are missing.</div></div></div>}
 
@@ -537,21 +532,47 @@ function PropertyProfileTab() {
         </div>
 
         {/* Features / amenities */}
-        {amenities.length > 0 && (
-          <div className="card" style={{ marginBottom: 12 }}>
-            <div style={{ fontWeight: 600, marginBottom: 10 }}>Features & amenities</div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {amenities.map(a => <span key={a} style={{ padding: '4px 12px', borderRadius: 20, fontSize: 12, background: '#f0f0f0', color: '#555', fontWeight: 500 }}>{a}</span>)}
-            </div>
+        <div className="card" style={{ marginBottom: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <div style={{ fontWeight: 600 }}>Features & amenities</div>
+            <button onClick={() => { if (editSection === 'amenities') { setEditSection(null) } else { setEditSection('amenities'); setEditAmenities([...amenities]) } }} style={{ fontSize: 12, color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}>{editSection === 'amenities' ? 'Cancel' : 'Edit'}</button>
           </div>
-        )}
+          {editSection === 'amenities' ? (
+            <div>
+              <div style={{ fontSize: 13, color: '#888', marginBottom: 12 }}>Tap to select or deselect</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 14 }}>
+                {AMENITY_OPTIONS.map(a => (
+                  <div key={a.key} onClick={() => setEditAmenities(prev => prev.includes(a.key) ? prev.filter(x => x !== a.key) : [...prev, a.key])} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 6px', borderRadius: 8, cursor: 'pointer', textAlign: 'center', border: editAmenities.includes(a.key) ? '1.5px solid #0a0a0a' : '0.5px solid #e0e0e0', background: editAmenities.includes(a.key) ? '#f0f0f0' : '#fafafa', fontSize: 11, color: editAmenities.includes(a.key) ? '#0a0a0a' : '#888' }}>
+                    <i className={`ti ${a.icon}`} style={{ fontSize: 18 }} aria-hidden="true" />
+                    {a.key}
+                  </div>
+                ))}
+              </div>
+              <button className="btn-primary" onClick={saveAmenities} disabled={saving}>{saving ? 'Saving...' : 'Save amenities'}</button>
+            </div>
+          ) : (
+            <div>
+              {amenities.length === 0 && <div style={{ fontSize: 13, color: '#aaa' }}>No amenities added yet. Click Edit to add.</div>}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                {AMENITY_OPTIONS.filter(a => amenities.includes(a.key)).map(a => (
+                  <div key={a.key} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 6px', borderRadius: 8, textAlign: 'center', border: '1.5px solid #0a0a0a', background: '#f7f7f7', fontSize: 11, color: '#0a0a0a', fontWeight: 500 }}>
+                    <i className={`ti ${a.icon}`} style={{ fontSize: 18 }} aria-hidden="true" />
+                    {a.key}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Knowledge base */}
         <div className="card" style={{ marginBottom: 12 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <div style={{ fontWeight: 600 }}>Knowledge Base</div>
-            <button onClick={() => { if (editSection === 'kb') { setEditSection(null) } else { setEditSection('kb'); setEditKB({ ...kb }) } }} style={{ fontSize: 12, color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}>{editSection === 'kb' ? 'Cancel' : 'Edit'}</button>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: showKB ? 12 : 0 }}>
+            <div onClick={() => setShowKB(!showKB)} style={{ fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>Knowledge Base <span style={{ fontSize: 12, color: '#aaa' }}>{showKB ? '▲' : '▼'}</span></div>
+            {showKB && <button onClick={() => { if (editSection === 'kb') { setEditSection(null) } else { setEditSection('kb'); setEditKB({ ...kb }) } }} style={{ fontSize: 12, color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}>{editSection === 'kb' ? 'Cancel' : 'Edit'}</button>}
           </div>
+          {!showKB && null}
+          {showKB && <div>
           {editSection === 'kb' ? (
             <div>
               {KB_SECTIONS.map(section => <KBSection key={section.key} section={section} data={editKB} editMode={true} onChange={(key, val) => setEditKB(prev => ({ ...prev, [key]: val }))} />)}
@@ -563,6 +584,7 @@ function PropertyProfileTab() {
               {selected.knowledge_base_url && <div style={{ marginTop: 10 }}><a href={selected.knowledge_base_url} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: '#2563eb', fontWeight: 500 }}>📄 View knowledge base PDF →</a></div>}
             </div>
           )}
+          </div>}
         </div>
 
         {/* Property Details */}
@@ -592,46 +614,58 @@ function PropertyProfileTab() {
 
         {/* Cleaning history */}
         <div className="card" style={{ marginBottom: 12 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+          <div onClick={() => setShowJobHistory(!showJobHistory)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
             <div style={{ fontWeight: 600 }}>Cleaning History ({jobs.length})</div>
-            <button onClick={() => setShowJobHistory(!showJobHistory)} style={{ fontSize: 12, color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}>{showJobHistory ? 'Hide ▲' : 'View all ▼'}</button>
+            <span style={{ fontSize: 12, color: '#aaa' }}>{showJobHistory ? '▲' : '▼'}</span>
           </div>
-          {lastJob ? <div><div style={{ fontSize: 12, color: '#aaa', marginBottom: 4 }}>Latest</div><div style={{ display: 'flex', gap: 10, alignItems: 'center' }}><span className={`badge ${lastJob.status === 'Complete' ? 'badge-ready' : lastJob.status === 'In progress' ? 'badge-atrisk' : 'badge-notready'}`}>{lastJob.status}</span><span style={{ fontSize: 13, color: '#888' }}>{new Date(lastJob.job_date).toLocaleDateString('en-GB')} · {lastJob.readiness_percent || 0}%</span></div></div> : <div style={{ fontSize: 13, color: '#aaa' }}>No jobs yet.</div>}
-          {showJobHistory && jobs.map(job => <div key={job.id} style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0', marginTop: 8 }}><div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ fontSize: 13 }}>{new Date(job.job_date).toLocaleDateString('en-GB')}</span><span className={`badge ${job.status === 'Complete' ? 'badge-ready' : 'badge-atrisk'}`}>{job.status}</span></div></div>)}
+          {showJobHistory && <div style={{ marginTop: 12 }}>
+            {lastJob ? <div><div style={{ fontSize: 12, color: '#aaa', marginBottom: 4 }}>Latest</div><div style={{ display: 'flex', gap: 10, alignItems: 'center' }}><span className={`badge ${lastJob.status === 'Complete' ? 'badge-ready' : lastJob.status === 'In progress' ? 'badge-atrisk' : 'badge-notready'}`}>{lastJob.status}</span><span style={{ fontSize: 13, color: '#888' }}>{new Date(lastJob.job_date).toLocaleDateString('en-GB')} · {lastJob.readiness_percent || 0}%</span></div></div> : <div style={{ fontSize: 13, color: '#aaa' }}>No jobs yet.</div>}
+            {jobs.length > 1 && jobs.map(job => <div key={job.id} style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0', marginTop: 8 }}><div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ fontSize: 13 }}>{new Date(job.job_date).toLocaleDateString('en-GB')}</span><span className={`badge ${job.status === 'Complete' ? 'badge-ready' : 'badge-atrisk'}`}>{job.status}</span></div></div>)}
+          </div>}
         </div>
 
         {/* Issues */}
         <div className="card" style={{ marginBottom: 12 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <div style={{ fontWeight: 600 }}>Issues ({issues.length})</div>
-            <button onClick={() => setShowIssueHistory(!showIssueHistory)} style={{ fontSize: 12, color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}>{showIssueHistory ? 'Hide ▲' : 'View all ▼'}</button>
+          <div onClick={() => setShowIssueHistory(!showIssueHistory)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
+            <div style={{ fontWeight: 600 }}>Issues ({issues.length} total · {openIssues.length} open)</div>
+            <span style={{ fontSize: 12, color: '#aaa' }}>{showIssueHistory ? '▲' : '▼'}</span>
           </div>
-          {openIssues.length === 0 && <div style={{ fontSize: 13, color: '#16a34a' }}>No open issues.</div>}
-          {openIssues.map(issue => <div key={issue.id} style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}><div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 4 }}><SeverityBadge s={issue.severity} /><span style={{ fontSize: 13, fontWeight: 500 }}>{issue.category}</span></div><div style={{ fontSize: 13, color: '#555' }}>{issue.description}</div></div>)}
-          {showIssueHistory && issues.filter(i => i.status === 'Closed' || i.status === 'Fixed').map(issue => <div key={issue.id} style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0', background: '#fafafa' }}><div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}><div style={{ display: 'flex', gap: 6 }}><SeverityBadge s={issue.severity} /><span style={{ fontSize: 13 }}>{issue.category}</span></div><span className="badge badge-ready">{issue.status}</span></div><div style={{ fontSize: 13, color: '#888' }}>{issue.description}</div></div>)}
+          {showIssueHistory && <div style={{ marginTop: 12 }}>
+            {openIssues.length === 0 && <div style={{ fontSize: 13, color: '#16a34a', marginBottom: 8 }}>No open issues.</div>}
+            {openIssues.map(issue => <div key={issue.id} style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}><div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 4 }}><SeverityBadge s={issue.severity} /><span style={{ fontSize: 13, fontWeight: 500 }}>{issue.category}</span></div><div style={{ fontSize: 13, color: '#555' }}>{issue.description}</div></div>)}
+            {issues.filter(i => i.status === 'Closed' || i.status === 'Fixed').length > 0 && (
+              <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #f0f0f0' }}>
+                <div style={{ fontSize: 12, color: '#aaa', marginBottom: 6 }}>Closed issues</div>
+                {issues.filter(i => i.status === 'Closed' || i.status === 'Fixed').map(issue => <div key={issue.id} style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}><div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}><div style={{ display: 'flex', gap: 6 }}><SeverityBadge s={issue.severity} /><span style={{ fontSize: 13 }}>{issue.category}</span></div><span className="badge badge-ready">{issue.status}</span></div><div style={{ fontSize: 13, color: '#888' }}>{issue.description}</div></div>)}
+              </div>
+            )}
+          </div>}
         </div>
 
         {/* Inventory */}
         <div className="card" style={{ marginBottom: 12 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <div style={{ fontWeight: 600 }}>Inventory</div>
-            <button onClick={() => { if (editSection === 'inventory') { setEditSection(null) } else { setEditSection('inventory'); setEditInventory(restock.map(i => ({ ...i }))) } }} style={{ fontSize: 12, color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}>{editSection === 'inventory' ? 'Cancel' : 'Edit'}</button>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: showInv ? 10 : 0 }}>
+            <div onClick={() => setShowInv(!showInv)} style={{ fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>Inventory ({restock.length}) <span style={{ fontSize: 12, color: '#aaa' }}>{showInv ? '▲' : '▼'}</span></div>
+            {showInv && <button onClick={() => { if (editSection === 'inventory') { setEditSection(null) } else { setEditSection('inventory'); setEditInventory(restock.map(i => ({ ...i }))) } }} style={{ fontSize: 12, color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}>{editSection === 'inventory' ? 'Cancel' : 'Edit'}</button>}
           </div>
+          {showInv && <div>
           {restock.length === 0 && <div style={{ fontSize: 13, color: '#aaa' }}>No inventory items.</div>}
           {editSection === 'inventory' ? (
             <div>
               {editInventory.map((item, idx) => <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: '1px solid #f0f0f0' }}><span style={{ flex: 1, fontSize: 13 }}>{item.item_name}</span><div style={{ display: 'flex', gap: 6, alignItems: 'center' }}><span style={{ fontSize: 12, color: '#aaa' }}>Min</span><input type="number" min="0" style={{ width: 52, padding: '4px 6px', border: '1px solid #e0e0e0', borderRadius: 6, fontSize: 13, textAlign: 'center' }} value={item.minimum_quantity} onChange={e => setEditInventory(prev => prev.map((it, i) => i === idx ? { ...it, minimum_quantity: e.target.value } : it))} /><span style={{ fontSize: 12, color: '#aaa' }}>Cur</span><input type="number" min="0" style={{ width: 52, padding: '4px 6px', border: '1px solid #e0e0e0', borderRadius: 6, fontSize: 13, textAlign: 'center' }} value={item.current_quantity} onChange={e => setEditInventory(prev => prev.map((it, i) => i === idx ? { ...it, current_quantity: e.target.value } : it))} /></div></div>)}
               <button className="btn-primary" onClick={saveInventoryEdits} disabled={saving} style={{ marginTop: 12 }}>{saving ? 'Saving...' : 'Save inventory'}</button>
             </div>
-          ) : restock.map(item => <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid #f0f0f0' }}><span style={{ fontSize: 13 }}>{item.item_name}</span><div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><span style={{ fontSize: 13, color: item.needs_restock ? '#dc2626' : '#16a34a' }}>{item.current_quantity}/{item.minimum_quantity}</span><span className={`badge ${item.needs_restock ? 'badge-notready' : 'badge-ready'}`}>{item.needs_restock ? 'Restock' : 'OK'}</span></div></div>)}
+          ) : restock.map(item => <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid #f0f0f0' }}><span style={{ fontSize: 13 }}>{item.item_name}</span><div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><span style={{ fontSize: 13, color: item.needs_restock ? '#dc2626' : '#16a34a' }}>{item.current_quantity}/{item.minimum_quantity}</span><span className={`badge ${item.needs_restock ? 'badge-notready' : item.current_quantity > item.minimum_quantity * 1.5 ? 'badge-atrisk' : 'badge-ready'}`}>{item.needs_restock ? 'Needs restock' : item.current_quantity > item.minimum_quantity * 1.5 ? 'Extra' : 'Enough'}</span></div></div>)}
+          </div>}
         </div>
 
         {/* Compliance */}
         <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <div style={{ fontWeight: 600 }}>Compliance ({enrichedComp.length})</div>
-            <button onClick={() => setShowCompForm(!showCompForm)} style={{ background: '#0a0a0a', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, cursor: 'pointer', fontWeight: 500 }}>{showCompForm ? 'Cancel' : '+ Add'}</button>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: showCompSection ? 12 : 0 }}>
+            <div onClick={() => setShowCompSection(!showCompSection)} style={{ fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>Compliance ({enrichedComp.length}) <span style={{ fontSize: 12, color: '#aaa' }}>{showCompSection ? '▲' : '▼'}</span></div>
+            {showCompSection && <button onClick={() => setShowCompForm(!showCompForm)} style={{ background: '#0a0a0a', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, cursor: 'pointer', fontWeight: 500 }}>{showCompForm ? 'Cancel' : '+ Add'}</button>}
           </div>
+          {showCompSection && <div>
           {showCompForm && (
             <div style={{ background: '#f7f7f7', borderRadius: 8, padding: 14, marginBottom: 14 }}>
               <div className="form-group"><label className="label">Document type *</label><select className="input-field" value={compForm.document_type} onChange={e => setCompForm({ ...compForm, document_type: e.target.value })}><option value="">Select</option>{docTypes.map(t => <option key={t} value={t}>{t}</option>)}</select></div>
@@ -647,6 +681,7 @@ function PropertyProfileTab() {
             if (!docs.length) return null
             return <div key={status} style={{ marginBottom: 12 }}><div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}><CompBadge status={status} /><span style={{ fontSize: 12, color: '#888' }}>{docs.length}</span></div>{docs.map(doc => <div key={doc.id} style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}><div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ fontSize: 13, fontWeight: 500 }}>{doc.document_type}</span><span style={{ fontSize: 12, color: '#888' }}>{doc.expiry_date ? new Date(doc.expiry_date).toLocaleDateString('en-GB') : 'No date'}</span></div>{doc.document_url && <a href={doc.document_url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#2563eb' }}>View →</a>}</div>)}</div>
           })}
+          </div>}
         </div>
       </div>
     )
@@ -1186,11 +1221,18 @@ function IssuesTab() {
 }
 
 // ── INVENTORY ────────────────────────────────────────────────────────
+function getInvStatus(item) {
+  if (item.needs_restock) return 'restock'
+  if (item.current_quantity > item.minimum_quantity * 1.5) return 'extra'
+  return 'enough'
+}
+
 function InventoryTab() {
   const [items, setItems] = useState([])
   const [properties, setProperties] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedPropertyId, setSelectedPropertyId] = useState('all')
+  const [sortMode, setSortMode] = useState('default')
   const [editMode, setEditMode] = useState(false)
   const [editValues, setEditValues] = useState({})
   const [saving, setSaving] = useState(false)
@@ -1208,35 +1250,80 @@ function InventoryTab() {
     setItems(data || []); setEditMode(false); setSaving(false)
   }
 
-  const filtered = selectedPropertyId === 'all' ? items : items.filter(item => String(item.property_id) === String(selectedPropertyId))
-  const needsRestockCount = filtered.filter(i => i.needs_restock).length
+  const baseFiltered = selectedPropertyId === 'all' ? items : items.filter(item => String(item.property_id) === String(selectedPropertyId))
+
+  const filtered = [...baseFiltered].sort((a, b) => {
+    const score = i => ({ restock: 0, enough: 1, extra: 2 }[getInvStatus(i)] ?? 1)
+    if (sortMode === 'restock_first') return score(a) - score(b)
+    if (sortMode === 'enough_first') return (getInvStatus(a) === 'enough' ? -1 : 1) - (getInvStatus(b) === 'enough' ? -1 : 1)
+    if (sortMode === 'extra_first') return score(b) - score(a)
+    return 0
+  })
+
+  const needsRestockCount = baseFiltered.filter(i => i.needs_restock).length
+  const extraCount = baseFiltered.filter(i => getInvStatus(i) === 'extra').length
+
   if (loading) return <div className="empty-state">Loading inventory...</div>
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
-        <select className="input-field" style={{ maxWidth: 260, padding: '8px 12px' }} value={selectedPropertyId} onChange={e => setSelectedPropertyId(e.target.value)}><option value="all">All properties</option>{properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+        <select className="input-field" style={{ maxWidth: 260, padding: '8px 12px' }} value={selectedPropertyId} onChange={e => setSelectedPropertyId(e.target.value)}>
+          <option value="all">All properties</option>
+          {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
         {needsRestockCount > 0 && <span className="badge badge-notready">{needsRestockCount} need restock</span>}
+        {extraCount > 0 && <span className="badge badge-atrisk">{extraCount} extra</span>}
         {needsRestockCount === 0 && filtered.length > 0 && <span className="badge badge-ready">All stocked</span>}
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-          {editMode ? <><button onClick={() => setEditMode(false)} className="btn-secondary" style={{ padding: '8px 14px', fontSize: 13 }}>Cancel</button><button onClick={saveEdits} className="btn-primary" style={{ width: 'auto', padding: '8px 14px', fontSize: 13 }} disabled={saving}>{saving ? 'Saving...' : 'Save'}</button></> : <button onClick={enterEditMode} className="btn-secondary" style={{ padding: '8px 14px', fontSize: 13 }}>Edit inventory</button>}
+          {editMode
+            ? <><button onClick={() => setEditMode(false)} className="btn-secondary" style={{ padding: '8px 14px', fontSize: 13 }}>Cancel</button><button onClick={saveEdits} className="btn-primary" style={{ width: 'auto', padding: '8px 14px', fontSize: 13 }} disabled={saving}>{saving ? 'Saving...' : 'Save'}</button></>
+            : <button onClick={enterEditMode} className="btn-secondary" style={{ padding: '8px 14px', fontSize: 13 }}>Edit inventory</button>
+          }
         </div>
       </div>
+
+      {/* Sort filters */}
+      {!editMode && filtered.length > 0 && (
+        <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
+          {[{ key: 'default', label: 'Default' }, { key: 'restock_first', label: 'Restock first' }, { key: 'enough_first', label: 'Enough first' }, { key: 'extra_first', label: 'Extra first' }].map(s => (
+            <button key={s.key} onClick={() => setSortMode(s.key)} style={{ padding: '5px 12px', borderRadius: 20, fontSize: 12, fontWeight: 500, cursor: 'pointer', border: '0.5px solid #e0e0e0', background: sortMode === s.key ? '#0a0a0a' : '#f7f7f7', color: sortMode === s.key ? '#fff' : '#555' }}>{s.label}</button>
+          ))}
+        </div>
+      )}
+
       {!filtered.length && <div className="empty-state">{selectedPropertyId === 'all' ? 'No inventory items yet.' : 'No inventory items for this property.'}</div>}
       {filtered.length > 0 && (
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-            <thead><tr style={{ background: '#f4f4f4' }}>{(selectedPropertyId === 'all' ? ['Property', 'Item', 'Min', 'Current', 'Status'] : ['Item', 'Min', 'Current', 'Status']).map(h => <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, fontSize: 13, color: '#444', borderBottom: '1px solid #e0e0e0' }}>{h}</th>)}</tr></thead>
+            <thead>
+              <tr style={{ background: '#f4f4f4' }}>
+                {(selectedPropertyId === 'all' ? ['Property', 'Item', 'Min', 'Current', 'Status'] : ['Item', 'Min', 'Current', 'Status']).map(h => (
+                  <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, fontSize: 13, color: '#444', borderBottom: '1px solid #e0e0e0' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
             <tbody>
-              {filtered.map((item, i) => (
-                <tr key={item.id} style={{ background: item.needs_restock ? '#fff8f8' : i % 2 === 0 ? '#fff' : '#fafafa' }}>
-                  {selectedPropertyId === 'all' && <td style={{ padding: '10px 12px', borderBottom: '1px solid #f0f0f0', color: '#555' }}>{properties.find(p => String(p.id) === String(item.property_id))?.name || '—'}</td>}
-                  <td style={{ padding: '10px 12px', borderBottom: '1px solid #f0f0f0', fontWeight: 500 }}>{item.item_name}</td>
-                  <td style={{ padding: '10px 12px', borderBottom: '1px solid #f0f0f0', textAlign: 'center' }}>{editMode ? <input type="number" min="0" style={{ width: 52, padding: '4px 6px', border: '1px solid #e0e0e0', borderRadius: 6, fontSize: 13, textAlign: 'center' }} value={editValues[item.id]?.minimum_quantity ?? item.minimum_quantity} onChange={e => setEditValues(prev => ({ ...prev, [item.id]: { ...prev[item.id], minimum_quantity: e.target.value } }))} /> : <span style={{ color: '#888' }}>{item.minimum_quantity}</span>}</td>
-                  <td style={{ padding: '10px 12px', borderBottom: '1px solid #f0f0f0', textAlign: 'center' }}>{editMode ? <input type="number" min="0" style={{ width: 52, padding: '4px 6px', border: '1px solid #e0e0e0', borderRadius: 6, fontSize: 13, textAlign: 'center' }} value={editValues[item.id]?.current_quantity ?? item.current_quantity} onChange={e => setEditValues(prev => ({ ...prev, [item.id]: { ...prev[item.id], current_quantity: e.target.value } }))} /> : <span style={{ color: item.needs_restock ? '#dc2626' : '#16a34a', fontWeight: 600 }}>{item.current_quantity}</span>}</td>
-                  <td style={{ padding: '10px 12px', borderBottom: '1px solid #f0f0f0' }}><span className={`badge ${item.needs_restock ? 'badge-notready' : 'badge-ready'}`}>{item.needs_restock ? 'Needs restock' : 'Enough'}</span></td>
-                </tr>
-              ))}
+              {filtered.map((item, i) => {
+                const status = getInvStatus(item)
+                return (
+                  <tr key={item.id} style={{ background: status === 'restock' ? '#fff8f8' : status === 'extra' ? '#fffbf0' : i % 2 === 0 ? '#fff' : '#fafafa' }}>
+                    {selectedPropertyId === 'all' && <td style={{ padding: '10px 12px', borderBottom: '1px solid #f0f0f0', color: '#555' }}>{properties.find(p => String(p.id) === String(item.property_id))?.name || '—'}</td>}
+                    <td style={{ padding: '10px 12px', borderBottom: '1px solid #f0f0f0', fontWeight: 500 }}>{item.item_name}</td>
+                    <td style={{ padding: '10px 12px', borderBottom: '1px solid #f0f0f0', textAlign: 'center' }}>
+                      {editMode ? <input type="number" min="0" style={{ width: 52, padding: '4px 6px', border: '1px solid #e0e0e0', borderRadius: 6, fontSize: 13, textAlign: 'center' }} value={editValues[item.id]?.minimum_quantity ?? item.minimum_quantity} onChange={e => setEditValues(prev => ({ ...prev, [item.id]: { ...prev[item.id], minimum_quantity: e.target.value } }))} /> : <span style={{ color: '#888' }}>{item.minimum_quantity}</span>}
+                    </td>
+                    <td style={{ padding: '10px 12px', borderBottom: '1px solid #f0f0f0', textAlign: 'center' }}>
+                      {editMode ? <input type="number" min="0" style={{ width: 52, padding: '4px 6px', border: '1px solid #e0e0e0', borderRadius: 6, fontSize: 13, textAlign: 'center' }} value={editValues[item.id]?.current_quantity ?? item.current_quantity} onChange={e => setEditValues(prev => ({ ...prev, [item.id]: { ...prev[item.id], current_quantity: e.target.value } }))} /> : <span style={{ color: status === 'restock' ? '#dc2626' : status === 'extra' ? '#d97706' : '#16a34a', fontWeight: 600 }}>{item.current_quantity}</span>}
+                    </td>
+                    <td style={{ padding: '10px 12px', borderBottom: '1px solid #f0f0f0' }}>
+                      <span className={`badge ${status === 'restock' ? 'badge-notready' : status === 'extra' ? 'badge-atrisk' : 'badge-ready'}`}>
+                        {status === 'restock' ? 'Needs restock' : status === 'extra' ? 'Extra' : 'Enough'}
+                      </span>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
