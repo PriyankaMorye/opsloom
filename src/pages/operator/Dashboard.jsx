@@ -501,8 +501,8 @@ function PropertyProfileTab() {
     const enrichedComp = comp.map(d => ({ ...d, computed_status: computeDocStatus(d) }))
     const expiredDocs = enrichedComp.filter(d => d.computed_status === 'Expired')
     const dueSoonDocs = enrichedComp.filter(d => d.computed_status === 'Due Soon')
-    const amenities = (() => { try { return JSON.parse(selected.amenities || '[]') } catch { return [] } })()
-    const kb = (() => { try { return JSON.parse(selected.knowledge_base || '{}') } catch { return {} } })()
+    const amenities = (() => { try { const raw = selected.amenities; if (!raw) return []; if (Array.isArray(raw)) return raw; return JSON.parse(raw) } catch { return [] } })()
+    const kb = (() => { try { const raw = selected.knowledge_base; if (!raw) return {}; if (typeof raw === 'object') return raw; return JSON.parse(raw) } catch { return {} } })()
 
     return (
       <div>
