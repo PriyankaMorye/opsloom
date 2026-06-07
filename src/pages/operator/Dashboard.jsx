@@ -79,6 +79,7 @@ const KB_SECTIONS = [
   ]},
   { key: 'utilities', label: 'Utilities', icon: 'ti-wifi', fields: [
     { key: 'wifi', label: 'Wifi name and password' },
+    { key: 'wifi_router_location', label: 'Wifi router location' },
     { key: 'fuse_box', label: 'Fuse box location' },
     { key: 'stopcock', label: 'Water stopcock location' },
     { key: 'heating', label: 'Heating controls' },
@@ -531,15 +532,39 @@ function PropertyProfileTab() {
           ))}
         </div>
 
-        {/* Features / amenities */}
+                {/* Property details & features */}
         <div className="card" style={{ marginBottom: 12 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <div style={{ fontWeight: 600 }}>Features & amenities</div>
-            <button onClick={() => { if (editSection === 'amenities') { setEditSection(null) } else { setEditSection('amenities'); setEditAmenities([...amenities]) } }} style={{ fontSize: 12, color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}>{editSection === 'amenities' ? 'Cancel' : 'Edit'}</button>
+            <div style={{ fontWeight: 600 }}>Property details & features</div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => { if (editSection === 'details') { setEditSection(null) } else { setEditSection('details'); setEditForm({ name: selected.name, address: selected.address, bedroom: selected.bedroom, bathrooms: selected.bathrooms || '', next_checkin: selected.next_checkin ? selected.next_checkin.slice(0, 16) : '' }) } }} style={{ fontSize: 12, color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}>{editSection === 'details' ? 'Done' : 'Edit details'}</button>
+              <button onClick={() => { if (editSection === 'amenities') { setEditSection(null) } else { setEditSection('amenities'); setEditAmenities([...amenities]) } }} style={{ fontSize: 12, color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}>{editSection === 'amenities' ? 'Done' : 'Edit features'}</button>
+            </div>
           </div>
+
+          {editSection === 'details' ? (
+            <div style={{ marginBottom: 16 }}>
+              <div className="form-group"><label className="label">Property name</label><input className="input-field" value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} /></div>
+              <div className="form-group"><label className="label">Address</label><input className="input-field" value={editForm.address} onChange={e => setEditForm({ ...editForm, address: e.target.value })} /></div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <div className="form-group" style={{ flex: 1 }}><label className="label">Bedrooms</label><input className="input-field" type="number" min="1" value={editForm.bedroom} onChange={e => setEditForm({ ...editForm, bedroom: e.target.value })} /></div>
+                <div className="form-group" style={{ flex: 1 }}><label className="label">Bathrooms</label><input className="input-field" type="number" min="0" value={editForm.bathrooms} onChange={e => setEditForm({ ...editForm, bathrooms: e.target.value })} /></div>
+              </div>
+              <div className="form-group"><label className="label">Next check-in</label><input className="input-field" type="datetime-local" value={editForm.next_checkin} onChange={e => setEditForm({ ...editForm, next_checkin: e.target.value })} /></div>
+              <button className="btn-primary" onClick={savePropertyEdits} disabled={saving}>{saving ? 'Saving...' : 'Save details'}</button>
+            </div>
+          ) : (
+            <div style={{ marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid #f0f0f0' }}>
+              <div style={{ fontSize: 13, color: '#555', marginBottom: 4 }}>
+                {selected.bedroom} bedroom{selected.bedroom !== 1 ? 's' : ''}{selected.bathrooms ? ` · ${selected.bathrooms} bathroom${selected.bathrooms !== 1 ? 's' : ''}` : ''}{selected.max_guests ? ` · ${selected.max_guests} guests max` : ''}
+              </div>
+              <div style={{ fontSize: 13, color: '#888' }}>Check-in: {selected.next_checkin ? new Date(selected.next_checkin).toLocaleString('en-GB') : 'Not set'}</div>
+            </div>
+          )}
+
           {editSection === 'amenities' ? (
             <div>
-              <div style={{ fontSize: 13, color: '#888', marginBottom: 12 }}>Tap to select or deselect</div>
+              <div style={{ fontSize: 13, color: '#888', marginBottom: 10 }}>Tap to select or deselect</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 14 }}>
                 {AMENITY_OPTIONS.map(a => (
                   <div key={a.key} onClick={() => setEditAmenities(prev => prev.includes(a.key) ? prev.filter(x => x !== a.key) : [...prev, a.key])} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 6px', borderRadius: 8, cursor: 'pointer', textAlign: 'center', border: editAmenities.includes(a.key) ? '1.5px solid #0a0a0a' : '0.5px solid #e0e0e0', background: editAmenities.includes(a.key) ? '#f0f0f0' : '#fafafa', fontSize: 11, color: editAmenities.includes(a.key) ? '#0a0a0a' : '#888' }}>
@@ -548,24 +573,23 @@ function PropertyProfileTab() {
                   </div>
                 ))}
               </div>
-              <button className="btn-primary" onClick={saveAmenities} disabled={saving}>{saving ? 'Saving...' : 'Save amenities'}</button>
+              <button className="btn-primary" onClick={saveAmenities} disabled={saving}>{saving ? 'Saving...' : 'Save features'}</button>
+            </div>
+          ) : amenities.length > 0 ? (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+              {AMENITY_OPTIONS.filter(a => amenities.includes(a.key)).map(a => (
+                <div key={a.key} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 6px', borderRadius: 8, textAlign: 'center', border: '1px solid #e0e0e0', background: '#f7f7f7', fontSize: 11, color: '#444', fontWeight: 500 }}>
+                  <i className={`ti ${a.icon}`} style={{ fontSize: 18 }} aria-hidden="true" />
+                  {a.key}
+                </div>
+              ))}
             </div>
           ) : (
-            <div>
-              {amenities.length === 0 && <div style={{ fontSize: 13, color: '#aaa' }}>No amenities added yet. Click Edit to add.</div>}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
-                {AMENITY_OPTIONS.filter(a => amenities.includes(a.key)).map(a => (
-                  <div key={a.key} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 6px', borderRadius: 8, textAlign: 'center', border: '1.5px solid #0a0a0a', background: '#f7f7f7', fontSize: 11, color: '#0a0a0a', fontWeight: 500 }}>
-                    <i className={`ti ${a.icon}`} style={{ fontSize: 18 }} aria-hidden="true" />
-                    {a.key}
-                  </div>
-                ))}
-              </div>
-            </div>
+            <div style={{ fontSize: 13, color: '#aaa' }}>No features added. Click Edit features to add.</div>
           )}
         </div>
 
-        {/* Knowledge base */}
+{/* Knowledge base */}
         <div className="card" style={{ marginBottom: 12 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: showKB ? 12 : 0 }}>
             <div onClick={() => setShowKB(!showKB)} style={{ fontWeight: 600, cursor: 'pointer' }}>Knowledge Base</div>
@@ -696,7 +720,6 @@ function PropertyProfileTab() {
     <div>
       <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
         <input className="input-field" placeholder="Search properties..." value={search} onChange={e => setSearch(e.target.value)} style={{ flex: 1 }} />
-        <button onClick={() => setShowPaused(!showPaused)} className="btn-secondary" style={{ padding: '8px 14px', whiteSpace: 'nowrap' }}>{showPaused ? 'Active ▲' : 'Paused / Deleted'}</button>
         <button onClick={() => setShowAddForm(!showAddForm)} className="btn-primary" style={{ width: 'auto', padding: '8px 16px', whiteSpace: 'nowrap' }}>{showAddForm ? 'Cancel' : '+ Add property'}</button>
       </div>
 
