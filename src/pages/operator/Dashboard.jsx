@@ -899,28 +899,26 @@ function VendorDirectoryTab() {
   async function saveEdit() {
     if (!selected || !selectedType) return
     setSaving(true)
-    try {
-      const table = selectedType === 'vendor' ? 'Vendors' : 'Cleaners'
-      const pt = editForm.trades || []
-      const updateData = {
-        name: editForm.name,
-        phone: editForm.phone,
-        email: editForm.email,
-        trades: JSON.stringify(pt),
-        trade: pt[0] || '',
-        agency_name: editForm.agency_name || 'No agency'
-      }
-      const { data, error } = await supabase.from(table).update(updateData).eq('id', selected.id).select().single()
-      if (error) { console.error('Save error:', error); setSaving(false); return }
-      if (data) {
-        setSelected(data)
-        if (selectedType === 'vendor') setVendors(prev => prev.map(v => v.id === selected.id ? data : v))
-        else setCleaners(prev => prev.map(c => c.id === selected.id ? data : c))
-      }
-      setEditMode(false)
-    } catch (err) {
-      console.error('Save error:', err)
+    const table = selectedType === 'vendor' ? 'Vendors' : 'Cleaners'
+    const pt = editForm.trades || []
+    const updateData = {
+      name: editForm.name || selected.name,
+      phone: editForm.phone || selected.phone,
+      email: editForm.email || selected.email,
+      trades: pt,
+      trade: pt[0] || '',
+      agency_name: editForm.agency_name || 'No agency'
     }
+    const { data, error } = await supabase.from(table).update(updateData).eq('id', selected.id).select().single()
+    if (error) {
+      alert('Save failed: ' + error.message)
+      setSaving(false)
+      return
+    }
+    setSelected(data)
+    if (selectedType === 'vendor') setVendors(prev => prev.map(v => v.id === selected.id ? data : v))
+    else setCleaners(prev => prev.map(c => c.id === selected.id ? data : c))
+    setEditMode(false)
     setSaving(false)
   }
 
@@ -944,13 +942,12 @@ function VendorDirectoryTab() {
   async function savePerson() {
     if (!validatePerson()) return; setSaving(true)
     const agencyName = personForm.agency_id ? agencies.find(a => String(a.id) === String(personForm.agency_id))?.name || 'No agency' : 'No agency'
-    const tradesJson = JSON.stringify(personForm.trades)
     const isCleaner = personForm.trades.includes('Cleaner')
     if (isCleaner) {
-      const { data } = await supabase.from('Cleaners').insert({ name: personForm.name, phone: personForm.phone, email: personForm.email, agency_name: agencyName, trades: tradesJson }).select()
+      const { data } = await supabase.from('Cleaners').insert({ name: personForm.name, phone: personForm.phone, email: personForm.email, agency_name: agencyName, trades: personForm.trades }).select()
       setCleaners(prev => [...prev, ...(data || [])])
     } else {
-      const { data } = await supabase.from('Vendors').insert({ name: personForm.name, phone: personForm.phone, email: personForm.email, trade: personForm.trades[0] || '', trades: tradesJson, agency_name: agencyName }).select()
+      const { data } = await supabase.from('Vendors').insert({ name: personForm.name, phone: personForm.phone, email: personForm.email, trade: personForm.trades[0] || '', trades: personForm.trades, agency_name: agencyName }).select()
       setVendors(prev => [...prev, ...(data || [])])
     }
     setPersonForm({ name: '', phone: '', email: '', role: 'vendor', trades: [], agency_id: '' })
@@ -959,7 +956,7 @@ function VendorDirectoryTab() {
 
   async function saveAgency() {
     if (!validateAgency()) return; setSaving(true)
-    const { data } = await supabase.from('agencies').insert({ name: agencyForm.name, contact_no: agencyForm.contact_no, email: agencyForm.email, address: agencyForm.address, trades: JSON.stringify(agencyForm.trades), website: agencyForm.website || null, details: agencyForm.details || null }).select()
+    const { data } = await supabase.from('agencies').insert({ name: agencyForm.name, contact_no: agencyForm.contact_no, email: agencyForm.email, address: agencyForm.address, trades: agencyForm.trades, website: agencyForm.website || null, details: agencyForm.details || null }).select()
     setAgencies(prev => [...prev, ...(data || [])])
     setAgencyForm({ name: '', contact_no: '', email: '', address: '', trades: [], website: '', details: '' })
     setShowAgencyForm(false); setErrors({}); setSaving(false)
