@@ -568,7 +568,8 @@ function PropertyProfileTab() {
         {/* Knowledge base */}
         <div className="card" style={{ marginBottom: 12 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: showKB ? 12 : 0 }}>
-            <div onClick={() => setShowKB(!showKB)} style={{ fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>Knowledge Base <span style={{ fontSize: 12, color: '#aaa' }}>{showKB ? '▲' : '▼'}</span></div>
+            <div onClick={() => setShowKB(!showKB)} style={{ fontWeight: 600, cursor: 'pointer' }}>Knowledge Base</div>
+            {!showKB && <span onClick={() => setShowKB(true)} style={{ fontSize: 12, color: '#aaa', cursor: 'pointer' }}>▼</span>}
             {showKB && <button onClick={() => { if (editSection === 'kb') { setEditSection(null) } else { setEditSection('kb'); setEditKB({ ...kb }) } }} style={{ fontSize: 12, color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}>{editSection === 'kb' ? 'Cancel' : 'Edit'}</button>}
           </div>
           {!showKB && null}
@@ -645,7 +646,8 @@ function PropertyProfileTab() {
         {/* Inventory */}
         <div className="card" style={{ marginBottom: 12 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: showInv ? 10 : 0 }}>
-            <div onClick={() => setShowInv(!showInv)} style={{ fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>Inventory ({restock.length}) <span style={{ fontSize: 12, color: '#aaa' }}>{showInv ? '▲' : '▼'}</span></div>
+            <div onClick={() => setShowInv(!showInv)} style={{ fontWeight: 600, cursor: 'pointer' }}>Inventory ({restock.length})</div>
+            <span onClick={() => setShowInv(!showInv)} style={{ fontSize: 12, color: '#aaa', cursor: 'pointer' }}>{showInv ? '▲' : '▼'}</span>
             {showInv && <button onClick={() => { if (editSection === 'inventory') { setEditSection(null) } else { setEditSection('inventory'); setEditInventory(restock.map(i => ({ ...i }))) } }} style={{ fontSize: 12, color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}>{editSection === 'inventory' ? 'Cancel' : 'Edit'}</button>}
           </div>
           {showInv && <div>
@@ -662,7 +664,8 @@ function PropertyProfileTab() {
         {/* Compliance */}
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: showCompSection ? 12 : 0 }}>
-            <div onClick={() => setShowCompSection(!showCompSection)} style={{ fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>Compliance ({enrichedComp.length}) <span style={{ fontSize: 12, color: '#aaa' }}>{showCompSection ? '▲' : '▼'}</span></div>
+            <div onClick={() => setShowCompSection(!showCompSection)} style={{ fontWeight: 600, cursor: 'pointer' }}>Compliance ({enrichedComp.length})</div>
+            {!showCompSection && <span onClick={() => setShowCompSection(!showCompSection)} style={{ fontSize: 12, color: '#aaa', cursor: 'pointer' }}>▼</span>}
             {showCompSection && <button onClick={() => setShowCompForm(!showCompForm)} style={{ background: '#0a0a0a', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, cursor: 'pointer', fontWeight: 500 }}>{showCompForm ? 'Cancel' : '+ Add'}</button>}
           </div>
           {showCompSection && <div>
