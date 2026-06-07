@@ -3,11 +3,12 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { createClient } from '@supabase/supabase-js'
 
-// Admin client for creating auth users
-const adminSupabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY
-)
+// Admin client for creating auth users — lazy so missing env var doesn't crash
+function getAdminClient() {
+  const key = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY
+  if (!key) return null
+  return createClient(import.meta.env.VITE_SUPABASE_URL, key)
+}
 
 // ── SHARED HELPERS ────────────────────────────────────────────────────
 function NavTab({ label, active, onClick }) {
@@ -1662,7 +1663,9 @@ function CleanerAccessSection({ cleaner, onUpdate }) {
     if (loginForm.password.length < 6) { setLoginError('Password must be at least 6 characters'); return }
     setCreating(true); setLoginError('')
     try {
-      const { data, error } = await adminSupabase.auth.admin.createUser({
+      const adminClient = getAdminClient()
+      if (!adminClient) { setLoginError('Service role key not configured. Add VITE_SUPABASE_SERVICE_ROLE_KEY to Vercel environment variables.'); setCreating(false); return }
+      const { data, error } = await adminClient.auth.admin.createUser({
         email: loginForm.email,
         password: loginForm.password,
         user_metadata: { role: 'cleaner' },
