@@ -791,8 +791,10 @@ const ALL_TRADES = ['Plumber', 'Electrician', 'Handyman', 'Laundry', 'Cleaner', 
 
 function parseTrades(val) {
   if (!val) return []
-  if (Array.isArray(val)) return val
-  try { return JSON.parse(val) } catch { return val ? [val] : [] }
+  let arr = []
+  if (Array.isArray(val)) arr = val
+  else { try { arr = JSON.parse(val) } catch { arr = val ? [val] : [] } }
+  return [...new Set(arr.filter(Boolean))]
 }
 
 function VendorDirectoryTab() {
@@ -800,25 +802,22 @@ function VendorDirectoryTab() {
   const [cleaners, setCleaners] = useState([])
   const [agencies, setAgencies] = useState([])
   const [loading, setLoading] = useState(true)
-  const [selectedTrades, setSelectedTrades] = useState([])
+  const [tradeFilter, setTradeFilter] = useState('all')
   const [selected, setSelected] = useState(null)
   const [selectedType, setSelectedType] = useState(null)
   const [history, setHistory] = useState([])
   const [agencyPeople, setAgencyPeople] = useState([])
   const [historyLoading, setHistoryLoading] = useState(false)
-  const [showVendorForm, setShowVendorForm] = useState(false)
-  const [showCleanerForm, setShowCleanerForm] = useState(false)
+  const [showPersonForm, setShowPersonForm] = useState(false)
   const [showAgencyForm, setShowAgencyForm] = useState(false)
   const [showBlocked, setShowBlocked] = useState(false)
   const [editMode, setEditMode] = useState(false)
   const [editForm, setEditForm] = useState({})
   const [saving, setSaving] = useState(false)
   const [errors, setErrors] = useState({})
-  const [vendorForm, setVendorForm] = useState({ name: '', phone: '', email: '', trades: [], agency_id: '' })
-  const [cleanerForm, setCleanerForm] = useState({ name: '', phone: '', email: '', agency_name: 'No agency' })
+  const [personForm, setPersonForm] = useState({ name: '', phone: '', email: '', role: 'vendor', trades: [], agency_id: '' })
   const [agencyForm, setAgencyForm] = useState({ name: '', contact_no: '', email: '', address: '', trades: [], website: '', details: '' })
 
-  const agencyTradeOptions = ['Cleaning', 'Maintenance', 'Multi-trade', 'Laundry', 'Property Management', 'Other']
   const tradeColors = { Plumber: '#dbeafe', Electrician: '#fef9c3', Handyman: '#dcfce7', Laundry: '#f3e8ff', Cleaner: '#e0f2fe', Other: '#f3f4f6', Painter: '#fce7f3', Gardener: '#d1fae5', Locksmith: '#e0e7ff', Glazier: '#fff7ed' }
   const tradeText = { Plumber: '#1e40af', Electrician: '#854d0e', Handyman: '#166534', Laundry: '#6b21a8', Cleaner: '#0369a1', Other: '#374151', Painter: '#9d174d', Gardener: '#065f46', Locksmith: '#3730a3', Glazier: '#92400e' }
 
@@ -835,25 +834,20 @@ function VendorDirectoryTab() {
     })
   }, [])
 
-  function toggleTradeFilter(trade) {
-    setSelectedTrades(prev => prev.includes(trade) ? prev.filter(t => t !== trade) : [...prev, trade])
-  }
-
-  function vendorMatchesTrade(v) {
-    if (!selectedTrades.length) return true
-    const vTrades = parseTrades(v.trades)
-    if (v.trade) vTrades.push(v.trade)
-    return selectedTrades.some(t => vTrades.includes(t))
+  function personMatchesTrade(p) {
+    if (tradeFilter === 'all') return true
+    const pt = parseTrades(p.trades)
+    if (p.trade && !pt.includes(p.trade)) pt.push(p.trade)
+    return pt.includes(tradeFilter)
   }
 
   function agencyMatchesTrade(a) {
-    if (!selectedTrades.length) return true
-    const aTrades = parseTrades(a.trades)
-    // Also check if any vendor/cleaner from this agency has matching trade
-    const agencyVendors = vendors.filter(v => v.agency_name === a.name)
-    const agencyCleaners = cleaners.filter(c => c.agency_name === a.name)
-    const allAgencyTrades = [...aTrades, ...agencyVendors.flatMap(v => [...parseTrades(v.trades), v.trade].filter(Boolean)), ...agencyCleaners.flatMap(c => parseTrades(c.trades))]
-    return selectedTrades.some(t => allAgencyTrades.includes(t))
+    if (tradeFilter === 'all') return true
+    const at = parseTrades(a.trades)
+    const agVendors = vendors.filter(v => v.agency_name === a.name)
+    const agCleaners = cleaners.filter(c => c.agency_name === a.name)
+    const allTrades = [...at, ...agVendors.flatMap(v => [...parseTrades(v.trades), v.trade].filter(Boolean)), ...agCleaners.flatMap(c => parseTrades(c.trades))]
+    return allTrades.includes(tradeFilter)
   }
 
   async function openVendor(v) {
@@ -870,17 +864,17 @@ function VendorDirectoryTab() {
 
   async function openAgency(a) {
     setSelected(a); setSelectedType('agency'); setHistoryLoading(true)
-    const agencyVendors = vendors.filter(v => v.agency_name === a.name)
-    const agencyCleaners = cleaners.filter(c => c.agency_name === a.name)
-    const vendorResults = await Promise.all(agencyVendors.map(async v => {
+    const agVendors = vendors.filter(v => v.agency_name === a.name)
+    const agCleaners = cleaners.filter(c => c.agency_name === a.name)
+    const vResults = await Promise.all(agVendors.map(async v => {
       const { data } = await supabase.from('issues').select('id').eq('vendor_id', v.id).limit(1)
-      return { ...v, type: 'vendor', hasHistory: (data || []).length > 0 }
+      return { ...v, type: 'vendor', hasHistory: (data||[]).length > 0 }
     }))
-    const cleanerResults = await Promise.all(agencyCleaners.map(async c => {
+    const cResults = await Promise.all(agCleaners.map(async c => {
       const { data } = await supabase.from('jobs').select('id').eq('cleaner_id', c.id).limit(1)
-      return { ...c, type: 'cleaner', hasHistory: (data || []).length > 0 }
+      return { ...c, type: 'cleaner', hasHistory: (data||[]).length > 0 }
     }))
-    setAgencyPeople([...vendorResults, ...cleanerResults].filter(p => p.hasHistory))
+    setAgencyPeople([...vResults, ...cResults].filter(p => p.hasHistory))
     setHistoryLoading(false)
   }
 
@@ -897,9 +891,8 @@ function VendorDirectoryTab() {
   async function saveEdit() {
     setSaving(true)
     const table = selectedType === 'vendor' ? 'Vendors' : 'Cleaners'
-    const updateData = selectedType === 'vendor'
-      ? { name: editForm.name, phone: editForm.phone, email: editForm.email, trades: JSON.stringify(editForm.trades), agency_name: editForm.agency_name }
-      : { name: editForm.name, phone: editForm.phone, email: editForm.email, agency_name: editForm.agency_name }
+    const pt = editForm.trades || []
+    const updateData = { name: editForm.name, phone: editForm.phone, email: editForm.email, trades: JSON.stringify(pt), trade: pt[0] || '', agency_name: editForm.agency_name }
     const { data } = await supabase.from(table).update(updateData).eq('id', selected.id).select().single()
     setSelected(data)
     if (selectedType === 'vendor') setVendors(prev => prev.map(v => v.id === selected.id ? data : v))
@@ -907,24 +900,16 @@ function VendorDirectoryTab() {
     setEditMode(false); setSaving(false)
   }
 
-  function validateVendor() {
+  function validatePerson() {
     const e = {}
-    if (!required(vendorForm.name)) e.name = 'Name is required'
-    if (!required(vendorForm.phone)) e.phone = 'Phone is required'
-    else if (!validatePhone(vendorForm.phone)) e.phone = 'Invalid phone'
-    if (!required(vendorForm.email)) e.email = 'Email is required'
-    else if (!validateEmail(vendorForm.email)) e.email = 'Invalid email'
-    if (!vendorForm.trades.length) e.trades = 'Select at least one trade'
+    if (!required(personForm.name)) e.name = 'Name is required'
+    if (!required(personForm.phone)) e.phone = 'Phone is required'
+    else if (!validatePhone(personForm.phone)) e.phone = 'Invalid phone'
+    if (personForm.email && !validateEmail(personForm.email)) e.email = 'Invalid email'
+    if (!personForm.trades.length) e.trades = 'Select at least one trade'
     setErrors(e); return Object.keys(e).length === 0
   }
-  function validateCleaner() {
-    const e = {}
-    if (!required(cleanerForm.name)) e.name = 'Name is required'
-    if (!required(cleanerForm.phone)) e.phone = 'Phone is required'
-    else if (!validatePhone(cleanerForm.phone)) e.phone = 'Invalid phone'
-    if (cleanerForm.email && !validateEmail(cleanerForm.email)) e.email = 'Invalid email'
-    setErrors(e); return Object.keys(e).length === 0
-  }
+
   function validateAgency() {
     const e = {}
     if (!required(agencyForm.name)) e.name = 'Agency name is required'
@@ -932,34 +917,35 @@ function VendorDirectoryTab() {
     setErrors(e); return Object.keys(e).length === 0
   }
 
-  async function saveVendor() {
-    if (!validateVendor()) return; setSaving(true)
-    const agencyName = vendorForm.agency_id ? agencies.find(a => String(a.id) === String(vendorForm.agency_id))?.name || 'No agency' : 'No agency'
-    const { data } = await supabase.from('Vendors').insert({ name: vendorForm.name, phone: vendorForm.phone, email: vendorForm.email, trade: vendorForm.trades[0] || '', trades: JSON.stringify(vendorForm.trades), agency_name: agencyName }).select()
-    setVendors(prev => [...prev, ...(data || [])])
-    setVendorForm({ name: '', phone: '', email: '', trades: [], agency_id: '' }); setShowVendorForm(false); setErrors({}); setSaving(false)
-  }
-
-  async function saveCleaner() {
-    if (!validateCleaner()) return; setSaving(true)
-    const { data } = await supabase.from('Cleaners').insert({ ...cleanerForm }).select()
-    setCleaners(prev => [...prev, ...(data || [])])
-    setCleanerForm({ name: '', phone: '', email: '', agency_name: 'No agency' }); setShowCleanerForm(false); setErrors({}); setSaving(false)
+  async function savePerson() {
+    if (!validatePerson()) return; setSaving(true)
+    const agencyName = personForm.agency_id ? agencies.find(a => String(a.id) === String(personForm.agency_id))?.name || 'No agency' : 'No agency'
+    const tradesJson = JSON.stringify(personForm.trades)
+    if (personForm.role === 'cleaner') {
+      const { data } = await supabase.from('Cleaners').insert({ name: personForm.name, phone: personForm.phone, email: personForm.email, agency_name: agencyName, trades: tradesJson }).select()
+      setCleaners(prev => [...prev, ...(data || [])])
+    } else {
+      const { data } = await supabase.from('Vendors').insert({ name: personForm.name, phone: personForm.phone, email: personForm.email, trade: personForm.trades[0] || '', trades: tradesJson, agency_name: agencyName }).select()
+      setVendors(prev => [...prev, ...(data || [])])
+    }
+    setPersonForm({ name: '', phone: '', email: '', role: 'vendor', trades: [], agency_id: '' })
+    setShowPersonForm(false); setErrors({}); setSaving(false)
   }
 
   async function saveAgency() {
     if (!validateAgency()) return; setSaving(true)
     const { data } = await supabase.from('agencies').insert({ name: agencyForm.name, contact_no: agencyForm.contact_no, email: agencyForm.email, address: agencyForm.address, trades: JSON.stringify(agencyForm.trades), website: agencyForm.website || null, details: agencyForm.details || null }).select()
     setAgencies(prev => [...prev, ...(data || [])])
-    setAgencyForm({ name: '', contact_no: '', email: '', address: '', trades: [], website: '', details: '' }); setShowAgencyForm(false); setErrors({}); setSaving(false)
+    setAgencyForm({ name: '', contact_no: '', email: '', address: '', trades: [], website: '', details: '' })
+    setShowAgencyForm(false); setErrors({}); setSaving(false)
   }
 
   if (loading) return <div className="empty-state">Loading...</div>
 
-  // ── DETAIL: VENDOR / CLEANER ───────────────────────────────────────
+  // ── DETAIL: VENDOR / CLEANER ──────────────────────────────────────
   if (selected && (selectedType === 'vendor' || selectedType === 'cleaner')) {
-    const personTrades = parseTrades(selected.trades)
-    if (selected.trade && !personTrades.includes(selected.trade)) personTrades.push(selected.trade)
+    const pt = parseTrades(selected.trades)
+    if (selected.trade && !pt.includes(selected.trade)) pt.push(selected.trade)
     return (
       <div>
         <button onClick={() => { setSelected(null); setSelectedType(null); setEditMode(false) }} style={{ background: 'none', border: '1px solid #e0e0e0', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', marginBottom: 16, color: '#555' }}>← Back</button>
@@ -970,19 +956,17 @@ function VendorDirectoryTab() {
               <div className="form-group"><label className="label">Name</label><input className="input-field" value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} /></div>
               <div className="form-group"><label className="label">Phone</label><input className="input-field" value={editForm.phone} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} /></div>
               <div className="form-group"><label className="label">Email</label><input className="input-field" value={editForm.email} onChange={e => setEditForm({ ...editForm, email: e.target.value })} /></div>
-              {selectedType === 'vendor' && (
-                <div className="form-group">
-                  <label className="label">Trades</label>
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
-                    {ALL_TRADES.map(t => (
-                      <label key={t} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 20, border: `0.5px solid ${editForm.trades?.includes(t) ? '#0a0a0a' : '#e0e0e0'}`, background: editForm.trades?.includes(t) ? '#f0f0f0' : '#fafafa', cursor: 'pointer', fontSize: 12, fontWeight: 500 }}>
-                        <input type="checkbox" checked={editForm.trades?.includes(t) || false} onChange={() => setEditForm(prev => ({ ...prev, trades: prev.trades?.includes(t) ? prev.trades.filter(x => x !== t) : [...(prev.trades || []), t] }))} style={{ display: 'none' }} />
-                        {editForm.trades?.includes(t) ? '✓ ' : ''}{t}
-                      </label>
-                    ))}
-                  </div>
+              <div className="form-group">
+                <label className="label">Trades</label>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+                  {ALL_TRADES.map(t => (
+                    <label key={t} style={{ display: 'flex', alignItems: 'center', padding: '6px 12px', borderRadius: 20, border: `0.5px solid ${(editForm.trades||[]).includes(t) ? '#0a0a0a' : '#e0e0e0'}`, background: (editForm.trades||[]).includes(t) ? '#f0f0f0' : '#fafafa', cursor: 'pointer', fontSize: 12, fontWeight: 500, userSelect: 'none' }}>
+                      <input type="checkbox" checked={(editForm.trades||[]).includes(t)} onChange={() => setEditForm(prev => ({ ...prev, trades: (prev.trades||[]).includes(t) ? prev.trades.filter(x => x !== t) : [...(prev.trades||[]), t] }))} style={{ display: 'none' }} />
+                      {(editForm.trades||[]).includes(t) ? '✓ ' : ''}{t}
+                    </label>
+                  ))}
                 </div>
-              )}
+              </div>
               <div className="form-group"><label className="label">Agency</label><select className="input-field" value={editForm.agency_name} onChange={e => setEditForm({ ...editForm, agency_name: e.target.value })}><option value="No agency">No agency</option>{agencies.map(a => <option key={a.id} value={a.name}>{a.name}</option>)}</select></div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button onClick={() => setEditMode(false)} className="btn-secondary" style={{ flex: 1 }}>Cancel</button>
@@ -991,17 +975,16 @@ function VendorDirectoryTab() {
             </div>
           ) : (
             <div>
-              <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 8 }}>{selected.name}</div>
-              {personTrades.length > 0 && (
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
-                  {personTrades.map(t => <span key={t} style={{ padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 500, background: tradeColors[t] || tradeColors.Other, color: tradeText[t] || tradeText.Other }}>{t}</span>)}
-                </div>
-              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                <div style={{ fontWeight: 700, fontSize: 18 }}>{selected.name}</div>
+                <span style={{ fontSize: 11, background: selectedType === 'cleaner' ? '#e0f2fe' : '#f0f0f0', color: selectedType === 'cleaner' ? '#0369a1' : '#555', padding: '3px 10px', borderRadius: 20, fontWeight: 500 }}>{selectedType === 'cleaner' ? 'Cleaner' : 'Vendor'}</span>
+              </div>
+              {pt.length > 0 && <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>{pt.map(t => <span key={t} style={{ padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 500, background: tradeColors[t] || tradeColors.Other, color: tradeText[t] || tradeText.Other }}>{t}</span>)}</div>}
               <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{selected.phone}</div>
               <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{selected.email}</div>
               <div style={{ fontSize: 13, color: '#aaa', marginBottom: 14 }}>{selected.agency_name && selected.agency_name !== 'No agency' ? `Agency: ${selected.agency_name}` : 'No agency'}</div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={() => { setEditMode(true); setEditForm({ name: selected.name, phone: selected.phone, email: selected.email, trades: personTrades, agency_name: selected.agency_name }) }} className="btn-secondary" style={{ flex: 1 }}>Edit</button>
+                <button onClick={() => { setEditMode(true); setEditForm({ name: selected.name, phone: selected.phone, email: selected.email, trades: pt, agency_name: selected.agency_name || 'No agency' }) }} className="btn-secondary" style={{ flex: 1 }}>Edit</button>
                 <button onClick={() => toggleBlock(selected, selectedType)} style={{ flex: 1, padding: '10px 12px', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', background: selected.is_blocked ? '#dcfce7' : '#fee2e2', color: selected.is_blocked ? '#166534' : '#991b1b', border: 'none' }}>{selected.is_blocked ? 'Unblock' : 'Block'}</button>
               </div>
             </div>
@@ -1027,28 +1010,24 @@ function VendorDirectoryTab() {
     )
   }
 
-  // ── DETAIL: AGENCY ─────────────────────────────────────────────────
+  // ── DETAIL: AGENCY ────────────────────────────────────────────────
   if (selected && selectedType === 'agency') {
-    const agTrades = parseTrades(selected.trades)
+    const at = parseTrades(selected.trades)
     return (
       <div>
         <button onClick={() => { setSelected(null); setSelectedType(null) }} style={{ background: 'none', border: '1px solid #e0e0e0', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', marginBottom: 16, color: '#555' }}>← Back</button>
         <div className="card" style={{ marginBottom: 16 }}>
           <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 8 }}>{selected.name}</div>
-          {agTrades.length > 0 && (
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
-              {agTrades.map(t => <span key={t} style={{ padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 500, background: tradeColors[t] || '#f0f0f0', color: tradeText[t] || '#444' }}>{t}</span>)}
-            </div>
-          )}
+          {at.length > 0 && <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>{at.map(t => <span key={t} style={{ padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 500, background: tradeColors[t] || '#f0f0f0', color: tradeText[t] || '#444' }}>{t}</span>)}</div>}
           <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{selected.contact_no}</div>
           <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{selected.email}</div>
           <div style={{ fontSize: 13, color: '#aaa', marginBottom: 2 }}>{selected.address}</div>
           {selected.website && <a href={selected.website} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#2563eb' }}>{selected.website}</a>}
           {selected.details && <div style={{ fontSize: 12, color: '#aaa', marginTop: 6 }}>{selected.details}</div>}
         </div>
-        <div style={{ fontWeight: 600, marginBottom: 12 }}>People who have worked from this agency</div>
+        <div style={{ fontWeight: 600, marginBottom: 12 }}>People who have worked from this agency ({agencyPeople.length})</div>
         {historyLoading && <div className="empty-state">Loading...</div>}
-        {!historyLoading && agencyPeople.length === 0 && <div className="empty-state">No one from this agency has worked yet.</div>}
+        {!historyLoading && !agencyPeople.length && <div className="empty-state">No one from this agency has worked yet.</div>}
         {!historyLoading && agencyPeople.map(person => {
           const pt = parseTrades(person.trades)
           if (person.trade && !pt.includes(person.trade)) pt.push(person.trade)
@@ -1058,11 +1037,9 @@ function VendorDirectoryTab() {
                 <div>
                   <div style={{ fontWeight: 600, marginBottom: 4 }}>{person.name}</div>
                   <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>{person.phone}</div>
-                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                    {pt.map(t => <span key={t} style={{ padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 500, background: tradeColors[t] || '#f0f0f0', color: tradeText[t] || '#444' }}>{t}</span>)}
-                  </div>
+                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>{pt.map(t => <span key={t} style={{ padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 500, background: tradeColors[t] || '#f0f0f0', color: tradeText[t] || '#444' }}>{t}</span>)}</div>
                 </div>
-                <span style={{ fontSize: 11, color: '#aaa', background: '#f0f0f0', padding: '2px 8px', borderRadius: 20, alignSelf: 'flex-start' }}>{person.type}</span>
+                <span style={{ fontSize: 11, background: person.type === 'cleaner' ? '#e0f2fe' : '#f0f0f0', color: person.type === 'cleaner' ? '#0369a1' : '#555', padding: '2px 8px', borderRadius: 20, fontWeight: 500 }}>{person.type}</span>
               </div>
             </div>
           )
@@ -1071,68 +1048,58 @@ function VendorDirectoryTab() {
     )
   }
 
-  // ── LIST VIEW ──────────────────────────────────────────────────────
-  // Build unified list
-  const soloVendors = vendors.filter(v => (!v.agency_name || v.agency_name === 'No agency') && (showBlocked ? v.is_blocked : !v.is_blocked) && vendorMatchesTrade(v))
+  // ── LIST VIEW ─────────────────────────────────────────────────────
+  const soloVendors = vendors.filter(v => (!v.agency_name || v.agency_name === 'No agency') && (showBlocked ? v.is_blocked : !v.is_blocked) && personMatchesTrade(v))
   const soloCleaners = cleaners.filter(c => (!c.agency_name || c.agency_name === 'No agency') && (showBlocked ? c.is_blocked : !c.is_blocked))
-  const filteredAgencies = agencies.filter(a => agencyMatchesTrade(a))
+  const filteredAgencies = showBlocked ? [] : agencies.filter(a => agencyMatchesTrade(a))
 
   return (
     <div>
-      {/* Trade filter pills */}
-      <div style={{ marginBottom: 14 }}>
-        <div style={{ fontSize: 12, color: '#888', marginBottom: 8, fontWeight: 500 }}>Filter by trade</div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {ALL_TRADES.map(t => (
-            <button key={t} onClick={() => toggleTradeFilter(t)} style={{ padding: '5px 12px', borderRadius: 20, fontSize: 12, fontWeight: 500, cursor: 'pointer', border: `0.5px solid ${selectedTrades.includes(t) ? (tradeColors[t] ? 'transparent' : '#0a0a0a') : '#e0e0e0'}`, background: selectedTrades.includes(t) ? (tradeColors[t] || '#f0f0f0') : '#fafafa', color: selectedTrades.includes(t) ? (tradeText[t] || '#0a0a0a') : '#666' }}>
-              {selectedTrades.includes(t) ? '✓ ' : ''}{t}
-            </button>
-          ))}
-          {selectedTrades.length > 0 && <button onClick={() => setSelectedTrades([])} style={{ padding: '5px 12px', borderRadius: 20, fontSize: 12, cursor: 'pointer', border: '0.5px solid #e0e0e0', background: '#fff', color: '#dc2626' }}>Clear</button>}
+      {/* Top controls */}
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 14, flexWrap: 'wrap' }}>
+        <select className="input-field" style={{ maxWidth: 200, padding: '8px 12px', fontSize: 13 }} value={tradeFilter} onChange={e => setTradeFilter(e.target.value)}>
+          <option value="all">All trades</option>
+          {ALL_TRADES.map(t => <option key={t} value={t}>{t}</option>)}
+        </select>
+        <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
+          <button onClick={() => setShowBlocked(!showBlocked)} style={{ padding: '8px 12px', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', background: showBlocked ? '#fee2e2' : '#f0f0f0', color: showBlocked ? '#991b1b' : '#555', border: 'none' }}>{showBlocked ? 'Show active' : 'Blocked'}</button>
+          <button onClick={() => { setShowAgencyForm(!showAgencyForm); setShowPersonForm(false); setErrors({}) }} className="btn-secondary" style={{ padding: '8px 14px', fontSize: 13 }}>{showAgencyForm ? 'Cancel' : '+ Add agency'}</button>
+          <button onClick={() => { setShowPersonForm(!showPersonForm); setShowAgencyForm(false); setErrors({}) }} className="btn-primary" style={{ width: 'auto', padding: '8px 14px', fontSize: 13 }}>{showPersonForm ? 'Cancel' : '+ Add vendor'}</button>
         </div>
       </div>
 
-      {/* Action buttons */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-        <button onClick={() => { setShowVendorForm(!showVendorForm); setShowCleanerForm(false); setShowAgencyForm(false); setErrors({}) }} className="btn-primary" style={{ width: 'auto', padding: '8px 14px', fontSize: 13 }}>{showVendorForm ? 'Cancel' : '+ Add vendor'}</button>
-        <button onClick={() => { setShowCleanerForm(!showCleanerForm); setShowVendorForm(false); setShowAgencyForm(false); setErrors({}) }} className="btn-primary" style={{ width: 'auto', padding: '8px 14px', fontSize: 13 }}>{showCleanerForm ? 'Cancel' : '+ Add cleaner'}</button>
-        <button onClick={() => { setShowAgencyForm(!showAgencyForm); setShowVendorForm(false); setShowCleanerForm(false); setErrors({}) }} className="btn-primary" style={{ width: 'auto', padding: '8px 14px', fontSize: 13 }}>{showAgencyForm ? 'Cancel' : '+ Add agency'}</button>
-        <button onClick={() => setShowBlocked(!showBlocked)} style={{ padding: '8px 12px', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', background: showBlocked ? '#fee2e2' : '#f0f0f0', color: showBlocked ? '#991b1b' : '#555', border: 'none' }}>{showBlocked ? 'Show active' : 'Blocked'}</button>
-      </div>
-
-      {/* Add vendor form */}
-      {showVendorForm && (
+      {/* Add vendor/cleaner form */}
+      {showPersonForm && (
         <div className="card" style={{ marginBottom: 16 }}>
-          <div style={{ fontWeight: 600, marginBottom: 16 }}>Add vendor</div>
-          <div className="form-group"><label className="label">Name *</label><input className="input-field" placeholder="Full name" value={vendorForm.name} onChange={e => setVendorForm({ ...vendorForm, name: e.target.value })} /><FieldError msg={errors.name} /></div>
-          <div className="form-group"><label className="label">Phone *</label><input className="input-field" placeholder="07xxx xxxxxx" value={vendorForm.phone} onChange={e => setVendorForm({ ...vendorForm, phone: e.target.value })} /><FieldError msg={errors.phone} /></div>
-          <div className="form-group"><label className="label">Email *</label><input className="input-field" type="email" placeholder="email@example.com" value={vendorForm.email} onChange={e => setVendorForm({ ...vendorForm, email: e.target.value })} /><FieldError msg={errors.email} /></div>
+          <div style={{ fontWeight: 600, marginBottom: 16 }}>Add vendor / cleaner</div>
+          {/* Role selector */}
           <div className="form-group">
-            <label className="label">Trades * (select all that apply)</label>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+            <label className="label">Role *</label>
+            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+              {['vendor', 'cleaner'].map(role => (
+                <button key={role} onClick={() => setPersonForm({ ...personForm, role })} style={{ flex: 1, padding: '10px', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', border: `1.5px solid ${personForm.role === role ? '#0a0a0a' : '#e0e0e0'}`, background: personForm.role === role ? '#0a0a0a' : '#fafafa', color: personForm.role === role ? '#fff' : '#555' }}>
+                  {role.charAt(0).toUpperCase() + role.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="form-group"><label className="label">Full name *</label><input className="input-field" placeholder="e.g. Dave Smith" value={personForm.name} onChange={e => setPersonForm({ ...personForm, name: e.target.value })} /><FieldError msg={errors.name} /></div>
+          <div className="form-group"><label className="label">Phone *</label><input className="input-field" placeholder="07xxx xxxxxx" value={personForm.phone} onChange={e => setPersonForm({ ...personForm, phone: e.target.value })} /><FieldError msg={errors.phone} /></div>
+          <div className="form-group"><label className="label">Email</label><input className="input-field" type="email" placeholder="email@example.com" value={personForm.email} onChange={e => setPersonForm({ ...personForm, email: e.target.value })} /><FieldError msg={errors.email} /></div>
+          <div className="form-group">
+            <label className="label">Occupation / trades * <span style={{ fontSize: 11, color: '#aaa', fontWeight: 400 }}>Select all that apply</span></label>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
               {ALL_TRADES.map(t => (
-                <label key={t} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 20, border: `0.5px solid ${vendorForm.trades.includes(t) ? '#0a0a0a' : '#e0e0e0'}`, background: vendorForm.trades.includes(t) ? '#f0f0f0' : '#fafafa', cursor: 'pointer', fontSize: 12, fontWeight: 500, userSelect: 'none' }}>
-                  <input type="checkbox" checked={vendorForm.trades.includes(t)} onChange={() => setVendorForm(prev => ({ ...prev, trades: prev.trades.includes(t) ? prev.trades.filter(x => x !== t) : [...prev.trades, t] }))} style={{ display: 'none' }} />
-                  {vendorForm.trades.includes(t) ? '✓ ' : ''}{t}
+                <label key={t} style={{ display: 'flex', alignItems: 'center', padding: '7px 14px', borderRadius: 20, border: `0.5px solid ${personForm.trades.includes(t) ? '#0a0a0a' : '#e0e0e0'}`, background: personForm.trades.includes(t) ? '#0a0a0a' : '#fafafa', cursor: 'pointer', fontSize: 12, fontWeight: 500, userSelect: 'none', color: personForm.trades.includes(t) ? '#fff' : '#555' }}>
+                  <input type="checkbox" checked={personForm.trades.includes(t)} onChange={() => setPersonForm(prev => ({ ...prev, trades: prev.trades.includes(t) ? prev.trades.filter(x => x !== t) : [...prev.trades, t] }))} style={{ display: 'none' }} />
+                  {t}
                 </label>
               ))}
             </div>
             <FieldError msg={errors.trades} />
           </div>
-          <div className="form-group"><label className="label">Agency</label><select className="input-field" value={vendorForm.agency_id} onChange={e => setVendorForm({ ...vendorForm, agency_id: e.target.value })}><option value="">No agency</option>{agencies.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></div>
-          <button className="btn-primary" onClick={saveVendor} disabled={saving}>{saving ? 'Saving...' : 'Save vendor'}</button>
-        </div>
-      )}
-
-      {/* Add cleaner form */}
-      {showCleanerForm && (
-        <div className="card" style={{ marginBottom: 16 }}>
-          <div style={{ fontWeight: 600, marginBottom: 16 }}>Add cleaner</div>
-          <div className="form-group"><label className="label">Name *</label><input className="input-field" placeholder="Full name" value={cleanerForm.name} onChange={e => setCleanerForm({ ...cleanerForm, name: e.target.value })} /><FieldError msg={errors.name} /></div>
-          <div className="form-group"><label className="label">Phone *</label><input className="input-field" placeholder="07xxx xxxxxx" value={cleanerForm.phone} onChange={e => setCleanerForm({ ...cleanerForm, phone: e.target.value })} /><FieldError msg={errors.phone} /></div>
-          <div className="form-group"><label className="label">Email</label><input className="input-field" type="email" placeholder="email@example.com" value={cleanerForm.email} onChange={e => setCleanerForm({ ...cleanerForm, email: e.target.value })} /><FieldError msg={errors.email} /></div>
-          <div className="form-group"><label className="label">Agency</label><select className="input-field" value={cleanerForm.agency_name} onChange={e => setCleanerForm({ ...cleanerForm, agency_name: e.target.value })}><option value="No agency">No agency</option>{agencies.map(a => <option key={a.id} value={a.name}>{a.name}</option>)}</select></div>
-          <button className="btn-primary" onClick={saveCleaner} disabled={saving}>{saving ? 'Saving...' : 'Save cleaner'}</button>
+          <div className="form-group"><label className="label">Agency (if any)</label><select className="input-field" value={personForm.agency_id} onChange={e => setPersonForm({ ...personForm, agency_id: e.target.value })}><option value="">No agency</option>{agencies.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></div>
+          <button className="btn-primary" onClick={savePerson} disabled={saving}>{saving ? 'Saving...' : `Save ${personForm.role}`}</button>
         </div>
       )}
 
@@ -1142,12 +1109,12 @@ function VendorDirectoryTab() {
           <div style={{ fontWeight: 600, marginBottom: 16 }}>Add agency</div>
           <div className="form-group"><label className="label">Agency name *</label><input className="input-field" placeholder="Agency name" value={agencyForm.name} onChange={e => setAgencyForm({ ...agencyForm, name: e.target.value })} /><FieldError msg={errors.name} /></div>
           <div className="form-group">
-            <label className="label">Trades (select all that apply)</label>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+            <label className="label">Trades <span style={{ fontSize: 11, color: '#aaa', fontWeight: 400 }}>Select all that apply</span></label>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
               {ALL_TRADES.map(t => (
-                <label key={t} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 20, border: `0.5px solid ${agencyForm.trades.includes(t) ? '#0a0a0a' : '#e0e0e0'}`, background: agencyForm.trades.includes(t) ? '#f0f0f0' : '#fafafa', cursor: 'pointer', fontSize: 12, fontWeight: 500, userSelect: 'none' }}>
+                <label key={t} style={{ display: 'flex', alignItems: 'center', padding: '7px 14px', borderRadius: 20, border: `0.5px solid ${agencyForm.trades.includes(t) ? '#0a0a0a' : '#e0e0e0'}`, background: agencyForm.trades.includes(t) ? '#0a0a0a' : '#fafafa', cursor: 'pointer', fontSize: 12, fontWeight: 500, userSelect: 'none', color: agencyForm.trades.includes(t) ? '#fff' : '#555' }}>
                   <input type="checkbox" checked={agencyForm.trades.includes(t)} onChange={() => setAgencyForm(prev => ({ ...prev, trades: prev.trades.includes(t) ? prev.trades.filter(x => x !== t) : [...prev.trades, t] }))} style={{ display: 'none' }} />
-                  {agencyForm.trades.includes(t) ? '✓ ' : ''}{t}
+                  {t}
                 </label>
               ))}
             </div>
@@ -1156,87 +1123,91 @@ function VendorDirectoryTab() {
           <div className="form-group"><label className="label">Email</label><input className="input-field" type="email" placeholder="email@example.com" value={agencyForm.email} onChange={e => setAgencyForm({ ...agencyForm, email: e.target.value })} /><FieldError msg={errors.email} /></div>
           <div className="form-group"><label className="label">Address</label><input className="input-field" placeholder="Full address" value={agencyForm.address} onChange={e => setAgencyForm({ ...agencyForm, address: e.target.value })} /></div>
           <div className="form-group"><label className="label">Website (optional)</label><input className="input-field" placeholder="https://example.com" value={agencyForm.website} onChange={e => setAgencyForm({ ...agencyForm, website: e.target.value })} /></div>
-          <div className="form-group"><label className="label">Details (optional)</label><textarea className="input-field" rows={3} placeholder="Additional notes..." value={agencyForm.details} onChange={e => setAgencyForm({ ...agencyForm, details: e.target.value })} /></div>
+          <div className="form-group"><label className="label">Details (optional)</label><textarea className="input-field" rows={3} value={agencyForm.details} onChange={e => setAgencyForm({ ...agencyForm, details: e.target.value })} /></div>
           <button className="btn-primary" onClick={saveAgency} disabled={saving}>{saving ? 'Saving...' : 'Save agency'}</button>
         </div>
       )}
 
-      {/* Unified list */}
-      {showBlocked ? (
-        <div>
-          <div style={{ fontSize: 13, color: '#dc2626', marginBottom: 10 }}>Showing blocked</div>
-          <div style={{ display: 'grid', gap: 10 }}>
-            {vendors.filter(v => v.is_blocked).map(v => {
-              const vt = parseTrades(v.trades); if (v.trade && !vt.includes(v.trade)) vt.push(v.trade)
-              return <div key={v.id} className="card" style={{ padding: '14px 16px', cursor: 'pointer', opacity: 0.7 }} onClick={() => openVendor(v)}><div style={{ display: 'flex', justifyContent: 'space-between' }}><div><div style={{ fontWeight: 600, marginBottom: 4 }}>{v.name} <span className="badge badge-notready" style={{ fontSize: 11 }}>Blocked</span></div><div style={{ fontSize: 13, color: '#888' }}>{v.phone}</div></div><div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', maxWidth: 120, justifyContent: 'flex-end' }}>{vt.map(t => <span key={t} style={{ padding: '2px 8px', borderRadius: 20, fontSize: 11, background: tradeColors[t] || '#f0f0f0', color: tradeText[t] || '#444' }}>{t}</span>)}</div></div></div>
+      {/* List */}
+      <div style={{ display: 'grid', gap: 10 }}>
+        {showBlocked ? (
+          <>
+            {[...vendors.filter(v => v.is_blocked), ...cleaners.filter(c => c.is_blocked)].map(p => {
+              const isC = !p.trade && !p.trades ? false : cleaners.find(c => c.id === p.id) !== undefined
+              const pt = parseTrades(p.trades); if (p.trade && !pt.includes(p.trade)) pt.push(p.trade)
+              return (
+                <div key={p.id} className="card" style={{ padding: '14px 16px', cursor: 'pointer', opacity: 0.7 }} onClick={() => isC ? openCleaner(p) : openVendor(p)}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div><div style={{ fontWeight: 600, marginBottom: 4 }}>{p.name} <span className="badge badge-notready" style={{ fontSize: 11 }}>Blocked</span></div><div style={{ fontSize: 13, color: '#888' }}>{p.phone}</div></div>
+                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', maxWidth: 140, justifyContent: 'flex-end' }}>{pt.map(t => <span key={t} style={{ padding: '2px 8px', borderRadius: 20, fontSize: 11, background: tradeColors[t] || '#f0f0f0', color: tradeText[t] || '#444' }}>{t}</span>)}</div>
+                  </div>
+                </div>
+              )
             })}
-            {cleaners.filter(c => c.is_blocked).map(c => (
-              <div key={c.id} className="card" style={{ padding: '14px 16px', cursor: 'pointer', opacity: 0.7 }} onClick={() => openCleaner(c)}><div style={{ fontWeight: 600, marginBottom: 4 }}>{c.name} <span className="badge badge-notready" style={{ fontSize: 11 }}>Blocked</span></div><div style={{ fontSize: 13, color: '#888' }}>{c.phone}</div></div>
-            ))}
             {!vendors.filter(v => v.is_blocked).length && !cleaners.filter(c => c.is_blocked).length && <div className="empty-state">No blocked people.</div>}
-          </div>
-        </div>
-      ) : (
-        <div style={{ display: 'grid', gap: 10 }}>
-          {/* Agency cards */}
-          {filteredAgencies.map(agency => {
-            const agTrades = parseTrades(agency.trades)
-            const agencyVendors = vendors.filter(v => v.agency_name === agency.name && !v.is_blocked)
-            const agencyCleaners = cleaners.filter(c => c.agency_name === agency.name && !c.is_blocked)
-            const total = agencyVendors.length + agencyCleaners.length
-            return (
-              <div key={`agency-${agency.id}`} className="card" style={{ padding: '14px 16px', cursor: 'pointer' }} onClick={() => openAgency(agency)}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>{agency.name}</div>
-                    <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{agency.contact_no}</div>
-                    <div style={{ fontSize: 13, color: '#888', marginBottom: 6 }}>{agency.email}</div>
-                    {agTrades.length > 0 && <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>{agTrades.map(t => <span key={t} style={{ padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 500, background: tradeColors[t] || '#f0f0f0', color: tradeText[t] || '#444' }}>{t}</span>)}</div>}
-                    {total > 0 && <div style={{ fontSize: 12, color: '#aaa', marginTop: 4 }}>{total} person{total !== 1 ? 's' : ''}</div>}
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-                    <span style={{ fontSize: 11, background: '#f0f0f0', color: '#555', padding: '2px 8px', borderRadius: 20, fontWeight: 500 }}>Agency</span>
-                    <span style={{ fontSize: 12, color: '#aaa' }}>Tap →</span>
+          </>
+        ) : (
+          <>
+            {filteredAgencies.map(agency => {
+              const at = [...new Set(parseTrades(agency.trades))]
+              return (
+                <div key={`ag-${agency.id}`} className="card" style={{ padding: '14px 16px', cursor: 'pointer' }} onClick={() => openAgency(agency)}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                        <div style={{ fontWeight: 600, fontSize: 15 }}>{agency.name}</div>
+                        <span style={{ fontSize: 11, background: '#f0f0f0', color: '#555', padding: '2px 8px', borderRadius: 20, fontWeight: 500 }}>Agency</span>
+                      </div>
+                      <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{agency.contact_no}</div>
+                      <div style={{ fontSize: 13, color: '#888' }}>{agency.email}</div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, marginLeft: 10 }}>
+                      {at.length > 0 ? at.map(t => <span key={t} style={{ padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 500, background: tradeColors[t] || '#f0f0f0', color: tradeText[t] || '#444', whiteSpace: 'nowrap' }}>{t}</span>) : <span style={{ fontSize: 12, color: '#aaa' }}>Tap →</span>}
+                    </div>
                   </div>
                 </div>
-              </div>
-            )
-          })}
-          {/* Solo vendors */}
-          {soloVendors.map(v => {
-            const vt = parseTrades(v.trades); if (v.trade && !vt.includes(v.trade)) vt.push(v.trade)
-            return (
-              <div key={`vendor-${v.id}`} className="card" style={{ padding: '14px 16px', cursor: 'pointer' }} onClick={() => openVendor(v)}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>{v.name}</div>
-                    <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{v.phone}</div>
-                    <div style={{ fontSize: 13, color: '#888', marginBottom: 6 }}>{v.email}</div>
-                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>{vt.map(t => <span key={t} style={{ padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 500, background: tradeColors[t] || '#f0f0f0', color: tradeText[t] || '#444' }}>{t}</span>)}</div>
+              )
+            })}
+            {soloVendors.map(v => {
+              const pt = [...new Set([...parseTrades(v.trades), v.trade].filter(Boolean))]
+              return (
+                <div key={`v-${v.id}`} className="card" style={{ padding: '14px 16px', cursor: 'pointer' }} onClick={() => openVendor(v)}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>{v.name}</div>
+                      <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{v.phone}</div>
+                      <div style={{ fontSize: 13, color: '#888' }}>{v.email}</div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, marginLeft: 10 }}>
+                      {pt.map(t => <span key={t} style={{ padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 500, background: tradeColors[t] || '#f0f0f0', color: tradeText[t] || '#444', whiteSpace: 'nowrap' }}>{t}</span>)}
+                    </div>
                   </div>
-                  <span style={{ fontSize: 11, background: '#f0f0f0', color: '#555', padding: '2px 8px', borderRadius: 20, fontWeight: 500, alignSelf: 'flex-start' }}>Vendor</span>
                 </div>
-              </div>
-            )
-          })}
-          {/* Solo cleaners */}
-          {soloCleaners.map(c => (
-            <div key={`cleaner-${c.id}`} className="card" style={{ padding: '14px 16px', cursor: 'pointer' }} onClick={() => openCleaner(c)}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>{c.name}</div>
-                  <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{c.phone}</div>
-                  <div style={{ fontSize: 13, color: '#888' }}>{c.email}</div>
+              )
+            })}
+            {soloCleaners.map(c => {
+              const ct = [...new Set([...parseTrades(c.trades), c.trade].filter(Boolean))]
+              return (
+                <div key={`c-${c.id}`} className="card" style={{ padding: '14px 16px', cursor: 'pointer' }} onClick={() => openCleaner(c)}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>{c.name}</div>
+                      <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{c.phone}</div>
+                      <div style={{ fontSize: 13, color: '#888' }}>{c.email}</div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, marginLeft: 10 }}>
+                      {ct.length > 0 ? ct.map(t => <span key={t} style={{ padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 500, background: tradeColors[t] || '#e0f2fe', color: tradeText[t] || '#0369a1', whiteSpace: 'nowrap' }}>{t}</span>) : <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 500, background: '#e0f2fe', color: '#0369a1' }}>Cleaner</span>}
+                    </div>
+                  </div>
                 </div>
-                <span style={{ fontSize: 11, background: '#e0f2fe', color: '#0369a1', padding: '2px 8px', borderRadius: 20, fontWeight: 500 }}>Cleaner</span>
-              </div>
-            </div>
-          ))}
-          {!filteredAgencies.length && !soloVendors.length && !soloCleaners.length && (
-            <div className="empty-state">{selectedTrades.length > 0 ? 'No results for selected trades.' : 'No vendors, cleaners or agencies yet.'}</div>
-          )}
-        </div>
-      )}
+              )
+            })}
+            {!filteredAgencies.length && !soloVendors.length && !soloCleaners.length && (
+              <div className="empty-state">{tradeFilter !== 'all' ? `No results for "${tradeFilter}".` : 'No vendors, cleaners or agencies yet.'}</div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   )
 }
