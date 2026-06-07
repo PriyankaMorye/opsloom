@@ -405,8 +405,8 @@ function PropertyProfileTab() {
   const [editInventory, setEditInventory] = useState([])
   const [editAmenities, setEditAmenities] = useState([])
   const [showKB, setShowKB] = useState(true)
-  const [showInv, setShowInv] = useState(true)
-  const [showCompSection, setShowCompSection] = useState(true)
+  const [showInv, setShowInv] = useState(false)
+  const [showCompSection, setShowCompSection] = useState(false)
   const [invSort, setInvSort] = useState('default')
   const [editKB, setEditKB] = useState({})
   const [saving, setSaving] = useState(false)
@@ -681,17 +681,38 @@ function PropertyProfileTab() {
               {editInventory.map((item, idx) => <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: '1px solid #f0f0f0' }}><span style={{ flex: 1, fontSize: 13 }}>{item.item_name}</span><div style={{ display: 'flex', gap: 6, alignItems: 'center' }}><span style={{ fontSize: 12, color: '#aaa' }}>Min</span><input type="number" min="0" style={{ width: 52, padding: '4px 6px', border: '1px solid #e0e0e0', borderRadius: 6, fontSize: 13, textAlign: 'center' }} value={item.minimum_quantity} onChange={e => setEditInventory(prev => prev.map((it, i) => i === idx ? { ...it, minimum_quantity: e.target.value } : it))} /><span style={{ fontSize: 12, color: '#aaa' }}>Cur</span><input type="number" min="0" style={{ width: 52, padding: '4px 6px', border: '1px solid #e0e0e0', borderRadius: 6, fontSize: 13, textAlign: 'center' }} value={item.current_quantity} onChange={e => setEditInventory(prev => prev.map((it, i) => i === idx ? { ...it, current_quantity: e.target.value } : it))} /></div></div>)}
               <button className="btn-primary" onClick={saveInventoryEdits} disabled={saving} style={{ marginTop: 12 }}>{saving ? 'Saving...' : 'Save inventory'}</button>
             </div>
-          ) : restock.map(item => <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid #f0f0f0' }}><span style={{ fontSize: 13 }}>{item.item_name}</span><div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><span style={{ fontSize: 13, color: item.needs_restock ? '#dc2626' : '#16a34a' }}>{item.current_quantity}/{item.minimum_quantity}</span><span className={`badge ${item.needs_restock ? 'badge-notready' : item.current_quantity > item.minimum_quantity * 1.5 ? 'badge-atrisk' : 'badge-ready'}`}>{item.needs_restock ? 'Needs restock' : item.current_quantity > item.minimum_quantity * 1.5 ? 'Extra' : 'Enough'}</span></div></div>)}
+          ) : (() => {
+              const sortedRestock = [...restock].sort((a, b) => {
+                const sc = i => i.needs_restock ? 0 : i.current_quantity > i.minimum_quantity * 1.5 ? 2 : 1
+                if (invSort === 'restock_first') return sc(a) - sc(b)
+                if (invSort === 'enough_first') return (sc(a) === 1 ? -1 : 1) - (sc(b) === 1 ? -1 : 1)
+                if (invSort === 'extra_first') return sc(b) - sc(a)
+                return 0
+              })
+              return sortedRestock.map(item => (
+                <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #f0f0f0', background: item.needs_restock ? '#fff8f8' : 'transparent' }}>
+                  <span style={{ fontSize: 13 }}>{item.item_name}</span>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <span style={{ fontSize: 13, color: item.needs_restock ? '#dc2626' : '#555', fontWeight: 500 }}>{item.current_quantity}<span style={{ color: '#aaa', fontWeight: 400 }}>/{item.minimum_quantity}</span></span>
+                    <span className={`badge ${item.needs_restock ? 'badge-notready' : item.current_quantity > item.minimum_quantity * 1.5 ? 'badge-atrisk' : 'badge-ready'}`}>{item.needs_restock ? 'Needs restock' : item.current_quantity > item.minimum_quantity * 1.5 ? 'Extra' : 'Enough'}</span>
+                  </div>
+                </div>
+              ))
+            })()}
           </div>}
         </div>
 
         {/* Compliance */}
         <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: showCompSection ? 12 : 0 }}>
-            <div onClick={() => setShowCompSection(!showCompSection)} style={{ fontWeight: 600, cursor: 'pointer' }}>Compliance ({enrichedComp.length})</div>
-            {!showCompSection && <span onClick={() => setShowCompSection(!showCompSection)} style={{ fontSize: 12, color: '#aaa', cursor: 'pointer' }}>▼</span>}
-            {showCompSection && <button onClick={() => setShowCompForm(!showCompForm)} style={{ background: '#0a0a0a', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, cursor: 'pointer', fontWeight: 500 }}>{showCompForm ? 'Cancel' : '+ Add'}</button>}
+          <div onClick={() => setShowCompSection(!showCompSection)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
+            <div style={{ fontWeight: 600 }}>Compliance ({enrichedComp.length})</div>
+            <span style={{ fontSize: 12, color: '#aaa' }}>{showCompSection ? '▲' : '▼'}</span>
           </div>
+          {showCompSection && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10, marginBottom: 12 }}>
+              <button onClick={e => { e.stopPropagation(); setShowCompForm(!showCompForm) }} style={{ background: '#0a0a0a', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, cursor: 'pointer', fontWeight: 500 }}>{showCompForm ? 'Cancel' : '+ Add document'}</button>
+            </div>
+          )}
           {showCompSection && <div>
           {showCompForm && (
             <div style={{ background: '#f7f7f7', borderRadius: 8, padding: 14, marginBottom: 14 }}>
