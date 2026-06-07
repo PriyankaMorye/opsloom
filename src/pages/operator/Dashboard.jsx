@@ -1015,15 +1015,47 @@ function VendorDirectoryTab() {
     const at = parseTrades(selected.trades)
     return (
       <div>
-        <button onClick={() => { setSelected(null); setSelectedType(null) }} style={{ background: 'none', border: '1px solid #e0e0e0', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', marginBottom: 16, color: '#555' }}>← Back</button>
+        <button onClick={() => { setSelected(null); setSelectedType(null); setEditMode(false) }} style={{ background: 'none', border: '1px solid #e0e0e0', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', marginBottom: 16, color: '#555' }}>← Back</button>
         <div className="card" style={{ marginBottom: 16 }}>
-          <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 8 }}>{selected.name}</div>
-          {at.length > 0 && <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>{at.map(t => <span key={t} style={{ padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 500, background: tradeColors[t] || '#f0f0f0', color: tradeText[t] || '#444' }}>{t}</span>)}</div>}
-          <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{selected.contact_no}</div>
-          <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{selected.email}</div>
-          <div style={{ fontSize: 13, color: '#aaa', marginBottom: 2 }}>{selected.address}</div>
-          {selected.website && <a href={selected.website} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#2563eb' }}>{selected.website}</a>}
-          {selected.details && <div style={{ fontSize: 12, color: '#aaa', marginTop: 6 }}>{selected.details}</div>}
+          {editMode ? (
+            <div>
+              <div style={{ fontWeight: 600, marginBottom: 14 }}>Edit agency</div>
+              <div className="form-group"><label className="label">Agency name</label><input className="input-field" value={editForm.name || ''} onChange={e => setEditForm({ ...editForm, name: e.target.value })} /></div>
+              <div className="form-group">
+                <label className="label">Trades</label>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+                  {ALL_TRADES.map(t => (
+                    <label key={t} style={{ display: 'flex', alignItems: 'center', padding: '6px 12px', borderRadius: 20, border: `0.5px solid ${(editForm.trades||[]).includes(t) ? '#0a0a0a' : '#e0e0e0'}`, background: (editForm.trades||[]).includes(t) ? '#0a0a0a' : '#fafafa', cursor: 'pointer', fontSize: 12, fontWeight: 500, userSelect: 'none', color: (editForm.trades||[]).includes(t) ? '#fff' : '#555' }}>
+                      <input type="checkbox" checked={(editForm.trades||[]).includes(t)} onChange={() => setEditForm(prev => ({ ...prev, trades: (prev.trades||[]).includes(t) ? prev.trades.filter(x => x !== t) : [...(prev.trades||[]), t] }))} style={{ display: 'none' }} />
+                      {t}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="form-group"><label className="label">Contact number</label><input className="input-field" value={editForm.contact_no || ''} onChange={e => setEditForm({ ...editForm, contact_no: e.target.value })} /></div>
+              <div className="form-group"><label className="label">Email</label><input className="input-field" value={editForm.email || ''} onChange={e => setEditForm({ ...editForm, email: e.target.value })} /></div>
+              <div className="form-group"><label className="label">Address</label><input className="input-field" value={editForm.address || ''} onChange={e => setEditForm({ ...editForm, address: e.target.value })} /></div>
+              <div className="form-group"><label className="label">Website</label><input className="input-field" value={editForm.website || ''} onChange={e => setEditForm({ ...editForm, website: e.target.value })} /></div>
+              <div className="form-group"><label className="label">Details</label><textarea className="input-field" rows={3} value={editForm.details || ''} onChange={e => setEditForm({ ...editForm, details: e.target.value })} /></div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => setEditMode(false)} className="btn-secondary" style={{ flex: 1 }}>Cancel</button>
+                <button onClick={async () => { setSaving(true); const { data } = await supabase.from('agencies').update({ name: editForm.name, contact_no: editForm.contact_no, email: editForm.email, address: editForm.address, trades: JSON.stringify(editForm.trades || []), website: editForm.website || null, details: editForm.details || null }).eq('id', selected.id).select().single(); setSelected(data); setAgencies(prev => prev.map(a => a.id === selected.id ? data : a)); setEditMode(false); setSaving(false) }} className="btn-primary" disabled={saving} style={{ flex: 1 }}>{saving ? 'Saving...' : 'Save'}</button>
+              </div>
+            </div>
+          ) : (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                <div style={{ fontWeight: 700, fontSize: 18 }}>{selected.name}</div>
+                <button onClick={() => { setEditMode(true); setEditForm({ name: selected.name, contact_no: selected.contact_no, email: selected.email, address: selected.address, trades: at, website: selected.website || '', details: selected.details || '' }) }} style={{ fontSize: 12, color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}>Edit</button>
+              </div>
+              {at.length > 0 && <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>{at.map(t => <span key={t} style={{ padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 500, background: tradeColors[t] || '#f0f0f0', color: tradeText[t] || '#444' }}>{t}</span>)}</div>}
+              <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{selected.contact_no}</div>
+              <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{selected.email}</div>
+              <div style={{ fontSize: 13, color: '#aaa', marginBottom: 2 }}>{selected.address}</div>
+              {selected.website && <a href={selected.website} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#2563eb' }}>{selected.website}</a>}
+              {selected.details && <div style={{ fontSize: 12, color: '#aaa', marginTop: 6 }}>{selected.details}</div>}
+            </div>
+          )}
         </div>
         <div style={{ fontWeight: 600, marginBottom: 12 }}>People who have worked from this agency ({agencyPeople.length})</div>
         {historyLoading && <div className="empty-state">Loading...</div>}
@@ -1150,20 +1182,21 @@ function VendorDirectoryTab() {
           <>
             {filteredAgencies.map(agency => {
               const at = [...new Set(parseTrades(agency.trades))]
+              const activePersons = vendors.filter(v => v.agency_name === agency.name && !v.is_blocked).length + cleaners.filter(c => c.agency_name === agency.name && !c.is_blocked).length
               return (
                 <div key={`ag-${agency.id}`} className="card" style={{ padding: '14px 16px', cursor: 'pointer' }} onClick={() => openAgency(agency)}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div style={{ flex: 1 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                         <div style={{ fontWeight: 600, fontSize: 15 }}>{agency.name}</div>
                         <span style={{ fontSize: 11, background: '#f0f0f0', color: '#555', padding: '2px 8px', borderRadius: 20, fontWeight: 500 }}>Agency</span>
                       </div>
                       <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>{agency.contact_no}</div>
-                      <div style={{ fontSize: 13, color: '#888' }}>{agency.email}</div>
+                      <div style={{ fontSize: 13, color: '#888', marginBottom: 8 }}>{agency.email}</div>
+                      {at.length > 0 && <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 6 }}>{at.map(t => <span key={t} style={{ padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 500, background: tradeColors[t] || '#f0f0f0', color: tradeText[t] || '#444' }}>{t}</span>)}</div>}
+                      <div style={{ fontSize: 12, color: '#aaa' }}>{activePersons} active person{activePersons !== 1 ? 's' : ''}</div>
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, marginLeft: 10 }}>
-                      {at.length > 0 ? at.map(t => <span key={t} style={{ padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 500, background: tradeColors[t] || '#f0f0f0', color: tradeText[t] || '#444', whiteSpace: 'nowrap' }}>{t}</span>) : <span style={{ fontSize: 12, color: '#aaa' }}>Tap →</span>}
-                    </div>
+                    <span style={{ fontSize: 12, color: '#aaa', marginLeft: 10 }}>→</span>
                   </div>
                 </div>
               )
