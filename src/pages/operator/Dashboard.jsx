@@ -901,14 +901,15 @@ function VendorDirectoryTab() {
     setSaving(true)
     const table = selectedType === 'vendor' ? 'Vendors' : 'Cleaners'
     const pt = editForm.trades || []
-    const updateData = {
+    const baseUpdate = {
       name: editForm.name || selected.name,
       phone: editForm.phone || selected.phone,
       email: editForm.email || selected.email,
       trades: pt,
-      trade: pt[0] || '',
       agency_name: editForm.agency_name || 'No agency'
     }
+    // Vendors table has 'trade' column, Cleaners does not
+    const updateData = table === 'Vendors' ? { ...baseUpdate, trade: pt[0] || '' } : baseUpdate
     const { data, error } = await supabase.from(table).update(updateData).eq('id', selected.id).select().single()
     if (error) {
       alert('Save failed: ' + error.message)
