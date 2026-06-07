@@ -44,10 +44,353 @@ async function uploadFile(file, folder) {
 }
 
 // ── PROPERTY PROFILE ─────────────────────────────────────────────────
+const AMENITY_OPTIONS = [
+  { key: 'Parking', icon: 'ti-car' }, { key: 'Garden', icon: 'ti-tree' },
+  { key: 'Conservatory', icon: 'ti-building' }, { key: 'Garage', icon: 'ti-home-2' },
+  { key: 'Hot tub', icon: 'ti-pool' }, { key: 'Fire exit', icon: 'ti-door' },
+  { key: 'Wifi', icon: 'ti-wifi' }, { key: 'Smart TV', icon: 'ti-device-tv' },
+  { key: 'Washer', icon: 'ti-wash-machine' }, { key: 'Dishwasher', icon: 'ti-tool' },
+  { key: 'Tumble dryer', icon: 'ti-snowflake' }, { key: 'Log fire', icon: 'ti-flame' },
+  { key: 'Air conditioning', icon: 'ti-air-conditioning' }, { key: 'Parking (street)', icon: 'ti-road' },
+]
+
+const KB_SECTIONS = [
+  { key: 'access', label: 'Access & entry', icon: 'ti-key', fields: [
+    { key: 'access_code', label: 'Front door access code' },
+    { key: 'lockbox_location', label: 'Lockbox location' },
+    { key: 'key_instructions', label: 'Key instructions' },
+    { key: 'parking_instructions', label: 'Parking instructions' },
+  ]},
+  { key: 'layout', label: 'Property layout', icon: 'ti-layout-2', fields: [
+    { key: 'room_layout', label: 'Room layout', multiline: true },
+    { key: 'fire_exits', label: 'Fire exits' },
+    { key: 'garden_access', label: 'Garden / outdoor access' },
+  ]},
+  { key: 'linen', label: 'Linen & laundry', icon: 'ti-shirt', fields: [
+    { key: 'linen_location', label: 'Linen cupboard location' },
+    { key: 'linen_rooms', label: 'What linen goes where', multiline: true },
+    { key: 'washing_machine', label: 'Washing machine instructions' },
+  ]},
+  { key: 'appliances', label: 'Appliances', icon: 'ti-plug', fields: [
+    { key: 'boiler', label: 'Boiler location and instructions', multiline: true },
+    { key: 'dishwasher', label: 'Dishwasher instructions' },
+    { key: 'tv_remote', label: 'TV and remote' },
+    { key: 'other_appliances', label: 'Other appliance notes', multiline: true },
+  ]},
+  { key: 'utilities', label: 'Utilities', icon: 'ti-wifi', fields: [
+    { key: 'wifi', label: 'Wifi name and password' },
+    { key: 'fuse_box', label: 'Fuse box location' },
+    { key: 'stopcock', label: 'Water stopcock location' },
+    { key: 'heating', label: 'Heating controls' },
+  ]},
+  { key: 'stocks', label: 'Stocks & supplies', icon: 'ti-box', fields: [
+    { key: 'cleaning_products', label: 'Cleaning products location' },
+    { key: 'toiletries', label: 'Guest toiletries location' },
+    { key: 'kitchen_supplies', label: 'Kitchen supplies', multiline: true },
+    { key: 'towels', label: 'Spare towels location' },
+  ]},
+  { key: 'bins', label: 'Bins & waste', icon: 'ti-trash', fields: [
+    { key: 'bins', label: 'Bin location' },
+    { key: 'bin_collection', label: 'Collection day' },
+    { key: 'recycling', label: 'Recycling rules' },
+  ]},
+  { key: 'safety', label: 'Safety', icon: 'ti-shield', fields: [
+    { key: 'smoke_alarms', label: 'Smoke alarm locations' },
+    { key: 'co_alarm', label: 'CO alarm location' },
+    { key: 'fire_extinguisher', label: 'Fire extinguisher location' },
+    { key: 'first_aid', label: 'First aid kit' },
+  ]},
+  { key: 'special', label: 'Special instructions', icon: 'ti-notes', fields: [
+    { key: 'quirks', label: 'Quirks to know about', multiline: true },
+    { key: 'do_not', label: 'Things not to do', multiline: true },
+    { key: 'owner_preferences', label: 'Owner preferences', multiline: true },
+  ]},
+]
+
+function KBSection({ section, data, editMode, onChange }) {
+  const [open, setOpen] = useState(false)
+  const hasData = section.fields.some(f => data?.[f.key])
+  return (
+    <div style={{ border: '0.5px solid var(--color-border-tertiary, #e0e0e0)', borderRadius: 10, marginBottom: 8, overflow: 'hidden' }}>
+      <div onClick={() => setOpen(!open)} style={{ padding: '12px 14px', background: 'var(--color-background-secondary, #f7f7f7)', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <i className={`ti ${section.icon}`} style={{ fontSize: 15 }} aria-hidden="true" />
+          <span style={{ fontSize: 14, fontWeight: 500 }}>{section.label}</span>
+          {hasData && !editMode && <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#16a34a', flexShrink: 0 }} />}
+        </div>
+        <i className={`ti ${open ? 'ti-chevron-up' : 'ti-chevron-down'}`} style={{ fontSize: 14 }} aria-hidden="true" />
+      </div>
+      {open && (
+        <div style={{ padding: 14 }}>
+          {section.fields.map(field => (
+            <div key={field.key} style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, color: '#aaa', marginBottom: 4 }}>{field.label}</div>
+              {editMode ? (
+                field.multiline
+                  ? <textarea className="input-field" rows={3} value={data?.[field.key] || ''} onChange={e => onChange(field.key, e.target.value)} placeholder={`Enter ${field.label.toLowerCase()}...`} />
+                  : <input className="input-field" value={data?.[field.key] || ''} onChange={e => onChange(field.key, e.target.value)} placeholder={`Enter ${field.label.toLowerCase()}...`} />
+              ) : (
+                <div style={{ fontSize: 14, color: data?.[field.key] ? '#333' : '#aaa' }}>{data?.[field.key] || 'Not set'}</div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function AddPropertyStepper({ onSave, onCancel, agencies }) {
+  const [step, setStep] = useState(1)
+  const [saving, setSaving] = useState(false)
+  const [selectedAmenities, setSelectedAmenities] = useState([])
+  const [kbData, setKbData] = useState({})
+  const [compFiles, setCompFiles] = useState({})
+  const [form, setForm] = useState({ name: '', house_no: '', address_line1: '', address_line2: '', city: '', postcode: '', country: 'United Kingdom', bedroom: '', bathrooms: '', separate_wc: '', max_guests: '', next_checkin: '', knowledge_base_file: null })
+  const [errors, setErrors] = useState({})
+
+  const compDocs = [
+    { key: 'gas', label: 'Gas Safety Record (CP12)', sub: 'Annual · Gas Safe engineer' },
+    { key: 'eicr', label: 'EICR — electrical safety', sub: 'Every 5 years' },
+    { key: 'epc', label: 'EPC — energy rating', sub: 'Valid up to 10 years' },
+    { key: 'insurance', label: 'Public liability insurance', sub: 'Annual · short-let cover' },
+    { key: 'fra', label: 'Fire Risk Assessment', sub: 'Annual or on layout change' },
+  ]
+
+  function toggleAmenity(key) {
+    setSelectedAmenities(prev => prev.includes(key) ? prev.filter(a => a !== key) : [...prev, key])
+  }
+
+  function validateStep1() {
+    const e = {}
+    if (!required(form.name)) e.name = 'Property name is required'
+    if (!required(form.house_no)) e.house_no = 'Required'
+    if (!required(form.address_line1)) e.address_line1 = 'Required'
+    if (!required(form.city)) e.city = 'Required'
+    if (!required(form.postcode)) e.postcode = 'Required'
+    setErrors(e); return Object.keys(e).length === 0
+  }
+  function validateStep2() {
+    const e = {}
+    if (!required(form.bedroom) || isNaN(form.bedroom) || parseInt(form.bedroom) < 1) e.bedroom = 'Enter number of bedrooms'
+    setErrors(e); return Object.keys(e).length === 0
+  }
+
+  function nextStep() {
+    if (step === 1 && !validateStep1()) return
+    if (step === 2 && !validateStep2()) return
+    setStep(s => s + 1)
+  }
+
+  async function handleSave() {
+    setSaving(true)
+    const parts = [form.house_no.trim(), form.address_line1.trim()]
+    if (form.address_line2?.trim()) parts.push(form.address_line2.trim())
+    parts.push(form.city.trim(), form.postcode.trim().toUpperCase(), form.country)
+    const fullAddress = parts.join(', ')
+    let kbUrl = null
+    if (form.knowledge_base_file) kbUrl = await uploadFile(form.knowledge_base_file, 'knowledge-base')
+    const { data } = await supabase.from('Properties').insert({
+      name: form.name.trim(), address: fullAddress,
+      bedroom: parseInt(form.bedroom),
+      bathrooms: form.bathrooms ? parseInt(form.bathrooms) : null,
+      separate_wc: form.separate_wc ? parseInt(form.separate_wc) : null,
+      max_guests: form.max_guests ? parseInt(form.max_guests) : null,
+      next_checkin: form.next_checkin || null,
+      access_code: kbData.access_code || null,
+      linen_location: kbData.linen_location || null,
+      appliance_notes: kbData.boiler || null,
+      readiness_status: 'Not Ready',
+      property_status: 'active',
+      knowledge_base_url: kbUrl,
+      amenities: JSON.stringify(selectedAmenities),
+      knowledge_base: JSON.stringify(kbData),
+    }).select()
+
+    if (data?.[0]) {
+      const pid = data[0].id
+      for (const [key, file] of Object.entries(compFiles)) {
+        if (!file) continue
+        const docMap = { gas: 'Gas Safety Record (CP12)', eicr: 'EICR', epc: 'EPC', insurance: 'Public Liability Insurance', fra: 'Fire Risk Assessment' }
+        const fileUrl = await uploadFile(file, 'compliance')
+        await supabase.from('compliance_documents').insert({ document_type: docMap[key], property_id: pid, document_url: fileUrl })
+      }
+    }
+    setSaving(false)
+    onSave(data?.[0])
+  }
+
+  const stepLabels = ['Details', 'Features', 'Knowledge base', 'Compliance', 'Review']
+
+  return (
+    <div className="card" style={{ marginBottom: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <div style={{ fontWeight: 600, fontSize: 16 }}>Add new property</div>
+        <button onClick={onCancel} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#aaa' }}>×</button>
+      </div>
+
+      {/* Step bar */}
+      <div style={{ display: 'flex', marginBottom: 16, border: '0.5px solid #e0e0e0', borderRadius: 8, overflow: 'hidden' }}>
+        {stepLabels.map((label, i) => (
+          <div key={i} onClick={() => i + 1 < step && setStep(i + 1)} style={{
+            flex: 1, padding: '8px 4px', textAlign: 'center', fontSize: 11, fontWeight: 500,
+            background: step === i + 1 ? '#0a0a0a' : i + 1 < step ? '#dcfce7' : '#f7f7f7',
+            color: step === i + 1 ? '#fff' : i + 1 < step ? '#166534' : '#aaa',
+            borderRight: i < 4 ? '0.5px solid #e0e0e0' : 'none',
+            cursor: i + 1 < step ? 'pointer' : 'default',
+          }}>{i + 1 < step ? '✓ ' : `${i + 1}. `}{label}</div>
+        ))}
+      </div>
+
+      {/* Progress */}
+      <div style={{ height: 3, background: '#f0f0f0', borderRadius: 2, marginBottom: 20 }}>
+        <div style={{ height: 3, background: '#0a0a0a', borderRadius: 2, width: `${step * 20}%`, transition: 'width 0.3s' }} />
+      </div>
+
+      {/* STEP 1 — Details */}
+      {step === 1 && (
+        <div>
+          <div className="form-group"><label className="label">Property name *</label><input className="input-field" placeholder="e.g. The Mill House" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /><FieldError msg={errors.name} /></div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: '#888', margin: '4px 0 10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Address</div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <div className="form-group" style={{ flex: 1 }}><label className="label">House / flat no. *</label><input className="input-field" placeholder="e.g. 12" value={form.house_no} onChange={e => setForm({ ...form, house_no: e.target.value })} /><FieldError msg={errors.house_no} /></div>
+            <div className="form-group" style={{ flex: 2 }}><label className="label">Street *</label><input className="input-field" placeholder="e.g. Mill Lane" value={form.address_line1} onChange={e => setForm({ ...form, address_line1: e.target.value })} /><FieldError msg={errors.address_line1} /></div>
+          </div>
+          <div className="form-group"><label className="label">Address line 2 (optional)</label><input className="input-field" placeholder="e.g. Headingley" value={form.address_line2} onChange={e => setForm({ ...form, address_line2: e.target.value })} /></div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <div className="form-group" style={{ flex: 1 }}><label className="label">City *</label><input className="input-field" placeholder="e.g. Leeds" value={form.city} onChange={e => setForm({ ...form, city: e.target.value })} /><FieldError msg={errors.city} /></div>
+            <div className="form-group" style={{ flex: 1 }}><label className="label">Postcode *</label><input className="input-field" placeholder="e.g. LS1 5DQ" value={form.postcode} onChange={e => setForm({ ...form, postcode: e.target.value })} style={{ textTransform: 'uppercase' }} /><FieldError msg={errors.postcode} /></div>
+          </div>
+          <div className="form-group"><label className="label">Country</label><input className="input-field" value={form.country} onChange={e => setForm({ ...form, country: e.target.value })} /></div>
+        </div>
+      )}
+
+      {/* STEP 2 — Features */}
+      {step === 2 && (
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: '#888', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Rooms</div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <div className="form-group" style={{ flex: 1 }}><label className="label">Bedrooms *</label><input className="input-field" type="number" min="1" value={form.bedroom} onChange={e => setForm({ ...form, bedroom: e.target.value })} /><FieldError msg={errors.bedroom} /></div>
+            <div className="form-group" style={{ flex: 1 }}><label className="label">Bathrooms</label><input className="input-field" type="number" min="0" value={form.bathrooms} onChange={e => setForm({ ...form, bathrooms: e.target.value })} /></div>
+            <div className="form-group" style={{ flex: 1 }}><label className="label">Separate WC</label><input className="input-field" type="number" min="0" value={form.separate_wc} onChange={e => setForm({ ...form, separate_wc: e.target.value })} /></div>
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <div className="form-group" style={{ flex: 1 }}><label className="label">Max guests</label><input className="input-field" type="number" min="1" placeholder="e.g. 6" value={form.max_guests} onChange={e => setForm({ ...form, max_guests: e.target.value })} /></div>
+            <div className="form-group" style={{ flex: 1 }}><label className="label">Next check-in</label><input className="input-field" type="datetime-local" value={form.next_checkin} onChange={e => setForm({ ...form, next_checkin: e.target.value })} /></div>
+          </div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: '#888', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Amenities (tap to select)</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 16 }}>
+            {AMENITY_OPTIONS.map(a => (
+              <div key={a.key} onClick={() => toggleAmenity(a.key)} style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                padding: '10px 6px', borderRadius: 8, cursor: 'pointer', textAlign: 'center',
+                border: selectedAmenities.includes(a.key) ? '1.5px solid #0a0a0a' : '0.5px solid #e0e0e0',
+                background: selectedAmenities.includes(a.key) ? '#f0f0f0' : '#fafafa',
+                fontSize: 11, color: selectedAmenities.includes(a.key) ? '#0a0a0a' : '#888',
+              }}>
+                <i className={`ti ${a.icon}`} style={{ fontSize: 18 }} aria-hidden="true" />
+                {a.key}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* STEP 3 — Knowledge base */}
+      {step === 3 && (
+        <div>
+          <div style={{ fontSize: 13, color: '#888', marginBottom: 14 }}>Fill in what cleaners and maintenance staff need to know. All fields are optional.</div>
+          {KB_SECTIONS.map(section => (
+            <KBSection key={section.key} section={section} data={kbData} editMode={true} onChange={(key, val) => setKbData(prev => ({ ...prev, [key]: val }))} />
+          ))}
+          <div className="form-group" style={{ marginTop: 12 }}>
+            <label className="label">Upload knowledge base (PDF, Word or image, optional)</label>
+            <input type="file" accept=".pdf,.doc,.docx,image/*" className="input-field" style={{ padding: 8 }} onChange={e => setForm({ ...form, knowledge_base_file: e.target.files[0] })} />
+            {form.knowledge_base_file && <div style={{ fontSize: 12, color: '#16a34a', marginTop: 4 }}>✓ {form.knowledge_base_file.name}</div>}
+          </div>
+        </div>
+      )}
+
+      {/* STEP 4 — Compliance */}
+      {step === 4 && (
+        <div>
+          <div style={{ fontSize: 13, color: '#888', marginBottom: 14 }}>Upload documents now or skip and add later. Expired documents block readiness.</div>
+          {compDocs.map(doc => (
+            <div key={doc.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', border: '0.5px solid #e0e0e0', borderRadius: 10, marginBottom: 8 }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 2 }}>{doc.label}</div>
+                <div style={{ fontSize: 12, color: '#aaa' }}>{doc.sub}</div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {compFiles[doc.key] ? (
+                  <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 20, background: '#dcfce7', color: '#166534', fontWeight: 500 }}>✓ Uploaded</span>
+                ) : (
+                  <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 20, background: '#f0f0f0', color: '#888' }}>Not uploaded</span>
+                )}
+                <label style={{ cursor: 'pointer', fontSize: 12, color: '#2563eb' }}>
+                  Upload <input type="file" accept=".pdf,image/*" style={{ display: 'none' }} onChange={e => e.target.files[0] && setCompFiles(prev => ({ ...prev, [doc.key]: e.target.files[0] }))} />
+                </label>
+              </div>
+            </div>
+          ))}
+          <div style={{ marginTop: 10, padding: '10px 14px', borderRadius: 8, background: '#f7f7f7', fontSize: 13, color: '#888' }}>
+            You can skip this step and add documents later from the property profile.
+          </div>
+        </div>
+      )}
+
+      {/* STEP 5 — Review */}
+      {step === 5 && (
+        <div>
+          <div style={{ background: '#f7f7f7', borderRadius: 10, padding: 14, marginBottom: 10 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Property details</div>
+            <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 2 }}>{form.name}</div>
+            <div style={{ fontSize: 13, color: '#888' }}>{[form.house_no, form.address_line1, form.address_line2, form.city, form.postcode].filter(Boolean).join(', ')}</div>
+          </div>
+          <div style={{ background: '#f7f7f7', borderRadius: 10, padding: 14, marginBottom: 10 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Features</div>
+            <div style={{ fontSize: 13, color: '#888', marginBottom: 8 }}>{form.bedroom} bed{form.bathrooms ? ` · ${form.bathrooms} bath` : ''}{form.max_guests ? ` · ${form.max_guests} guests max` : ''}</div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {selectedAmenities.map(a => <span key={a} style={{ padding: '3px 10px', borderRadius: 20, fontSize: 12, background: '#fff', border: '0.5px solid #e0e0e0', color: '#555' }}>{a}</span>)}
+              {selectedAmenities.length === 0 && <span style={{ fontSize: 13, color: '#aaa' }}>No amenities selected</span>}
+            </div>
+          </div>
+          <div style={{ background: '#f7f7f7', borderRadius: 10, padding: 14, marginBottom: 10 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Knowledge base</div>
+            {Object.keys(kbData).length > 0 ? (
+              <div style={{ fontSize: 13, color: '#555' }}>{Object.keys(kbData).length} fields filled in</div>
+            ) : <div style={{ fontSize: 13, color: '#aaa' }}>No knowledge base data added</div>}
+          </div>
+          <div style={{ background: '#f7f7f7', borderRadius: 10, padding: 14, marginBottom: 10 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Compliance</div>
+            {Object.keys(compFiles).length > 0 ? (
+              Object.entries(compFiles).map(([k, f]) => <div key={k} style={{ fontSize: 13, color: '#16a34a' }}>✓ {f.name}</div>)
+            ) : <div style={{ fontSize: 13, color: '#aaa' }}>No documents uploaded — add after saving</div>}
+          </div>
+          {Object.keys(compFiles).length === 0 && (
+            <div style={{ padding: '10px 14px', borderRadius: 8, border: '0.5px solid #fed7aa', background: '#fff8ed', fontSize: 13, color: '#92400e', marginBottom: 12 }}>
+              ⚠️ No compliance documents uploaded. Property will show as Not Ready until added.
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Navigation buttons */}
+      <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+        {step > 1 && <button onClick={() => setStep(s => s - 1)} className="btn-secondary" style={{ flex: 1 }}>← Back</button>}
+        {step < 5 && <button onClick={nextStep} className="btn-primary" style={{ flex: 1 }}>Continue →</button>}
+        {step === 5 && <button onClick={handleSave} className="btn-primary" style={{ flex: 1 }} disabled={saving}>{saving ? 'Saving...' : 'Save property'}</button>}
+      </div>
+    </div>
+  )
+}
+
 function PropertyProfileTab() {
   const [properties, setProperties] = useState([])
+  const [agencies, setAgencies] = useState([])
   const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(''
+  )
   const [showPaused, setShowPaused] = useState(false)
   const [selected, setSelected] = useState(null)
   const [detailData, setDetailData] = useState(null)
@@ -56,19 +399,20 @@ function PropertyProfileTab() {
   const [showCompForm, setShowCompForm] = useState(false)
   const [showJobHistory, setShowJobHistory] = useState(false)
   const [showIssueHistory, setShowIssueHistory] = useState(false)
-  const [editSection, setEditSection] = useState(null) // 'details' | 'inventory' | 'knowledge' | null
+  const [editSection, setEditSection] = useState(null)
   const [editForm, setEditForm] = useState({})
   const [editInventory, setEditInventory] = useState([])
+  const [editKB, setEditKB] = useState({})
   const [saving, setSaving] = useState(false)
   const [savingComp, setSavingComp] = useState(false)
-  const [errors, setErrors] = useState({})
-  const [confirmAction, setConfirmAction] = useState(null) // { type: 'pause'|'delete', reason: '' }
-  const [form, setForm] = useState({ name: '', house_no: '', address_line1: '', address_line2: '', postcode: '', city: '', country: 'United Kingdom', bedroom: '', bathrooms: '', next_checkin: '', access_code: '', linen_location: '', appliance_notes: '', knowledge_base_file: null })
+  const [confirmAction, setConfirmAction] = useState(null)
   const [compForm, setCompForm] = useState({ document_type: '', issue_date: '', expiry_date: '', file: null })
   const docTypes = ['Gas Safety Record (CP12)', 'EICR', 'EPC', 'Public Liability Insurance', 'Fire Risk Assessment']
 
   useEffect(() => {
-    supabase.from('Properties').select('*').then(({ data }) => { setProperties(data || []); setLoading(false) })
+    Promise.all([supabase.from('Properties').select('*'), supabase.from('agencies').select('*')]).then(([p, a]) => {
+      setProperties(p.data || []); setAgencies(a.data || []); setLoading(false)
+    })
   }, [])
 
   async function openProperty(p) {
@@ -82,32 +426,6 @@ function PropertyProfileTab() {
     const issues = issRes.data || [], restock = restRes.data || [], comp = compRes.data || [], jobs = jobRes.data || []
     setDetailData({ issues, restock, comp, jobs, calculatedStatus: calculateReadiness(issues, restock, comp, jobs) })
     setDetailLoading(false)
-  }
-
-  function validateForm() {
-    const e = {}
-    if (!required(form.name)) e.name = 'Property name is required'
-    if (!required(form.house_no)) e.house_no = 'House or flat number is required'
-    if (!required(form.address_line1)) e.address_line1 = 'Street address is required'
-    if (!required(form.postcode)) e.postcode = 'Postcode is required'
-    if (!required(form.city)) e.city = 'City is required'
-    if (!required(form.bedroom) || isNaN(form.bedroom) || parseInt(form.bedroom) < 1) e.bedroom = 'Enter a valid number of bedrooms'
-    setErrors(e); return Object.keys(e).length === 0
-  }
-
-  async function saveProperty() {
-    if (!validateForm()) return
-    setSaving(true)
-    const parts = [form.house_no.trim(), form.address_line1.trim()]
-    if (form.address_line2.trim()) parts.push(form.address_line2.trim())
-    parts.push(form.city.trim(), form.postcode.trim().toUpperCase(), form.country)
-    const fullAddress = parts.join(', ')
-    let kbUrl = null
-    if (form.knowledge_base_file) kbUrl = await uploadFile(form.knowledge_base_file, 'knowledge-base')
-    const { data } = await supabase.from('Properties').insert({ name: form.name.trim(), address: fullAddress, bedroom: parseInt(form.bedroom), bathrooms: form.bathrooms ? parseInt(form.bathrooms) : null, next_checkin: form.next_checkin || null, access_code: form.access_code.trim() || null, linen_location: form.linen_location.trim() || null, appliance_notes: form.appliance_notes.trim() || null, readiness_status: 'Not Ready', knowledge_base_url: kbUrl, property_status: 'active' }).select()
-    setProperties(prev => [...prev, ...(data || [])])
-    setForm({ name: '', house_no: '', address_line1: '', address_line2: '', postcode: '', city: '', country: 'United Kingdom', bedroom: '', bathrooms: '', next_checkin: '', access_code: '', linen_location: '', appliance_notes: '', knowledge_base_file: null })
-    setShowAddForm(false); setErrors({}); setSaving(false)
   }
 
   async function saveCompDocument() {
@@ -125,26 +443,26 @@ function PropertyProfileTab() {
     setSaving(true)
     let kbUrl = selected.knowledge_base_url
     if (editForm.knowledge_base_file) kbUrl = await uploadFile(editForm.knowledge_base_file, 'knowledge-base')
-    const { data } = await supabase.from('Properties').update({ name: editForm.name, address: editForm.address, bedroom: parseInt(editForm.bedroom) || selected.bedroom, bathrooms: editForm.bathrooms ? parseInt(editForm.bathrooms) : null, next_checkin: editForm.next_checkin || null, access_code: editForm.access_code || null, linen_location: editForm.linen_location || null, appliance_notes: editForm.appliance_notes || null, knowledge_base_url: kbUrl }).eq('id', selected.id).select().single()
-    setSelected(data)
-    setProperties(prev => prev.map(p => p.id === selected.id ? data : p))
-    setEditSection(null); setSaving(false)
+    const { data } = await supabase.from('Properties').update({ name: editForm.name, address: editForm.address, bedroom: parseInt(editForm.bedroom) || selected.bedroom, bathrooms: editForm.bathrooms ? parseInt(editForm.bathrooms) : null, next_checkin: editForm.next_checkin || null, knowledge_base_url: kbUrl }).eq('id', selected.id).select().single()
+    setSelected(data); setProperties(prev => prev.map(p => p.id === selected.id ? data : p)); setEditSection(null); setSaving(false)
+  }
+
+  async function saveKBEdits() {
+    setSaving(true)
+    const { data } = await supabase.from('Properties').update({ knowledge_base: JSON.stringify(editKB) }).eq('id', selected.id).select().single()
+    setSelected(data); setProperties(prev => prev.map(p => p.id === selected.id ? data : p)); setEditSection(null); setSaving(false)
   }
 
   async function saveInventoryEdits() {
     setSaving(true)
     await Promise.all(editInventory.map(item => { const cur = parseInt(item.current_quantity) || 0; const min = parseInt(item.minimum_quantity) || 0; return supabase.from('restock').update({ current_quantity: cur, minimum_quantity: min, needs_restock: cur < min }).eq('id', item.id) }))
     const { data } = await supabase.from('restock').select('*').eq('property_id', selected.id)
-    setDetailData(prev => ({ ...prev, restock: data || [] }))
-    setEditSection(null); setSaving(false)
+    setDetailData(prev => ({ ...prev, restock: data || [] })); setEditSection(null); setSaving(false)
   }
 
   async function applyAction() {
-    if (!confirmAction) return
-    setSaving(true)
-    const update = confirmAction.type === 'pause'
-      ? { property_status: 'paused', pause_reason: confirmAction.reason }
-      : { property_status: 'deleted', delete_reason: confirmAction.reason }
+    if (!confirmAction) return; setSaving(true)
+    const update = confirmAction.type === 'pause' ? { property_status: 'paused', pause_reason: confirmAction.reason } : { property_status: 'deleted', delete_reason: confirmAction.reason }
     await supabase.from('Properties').update(update).eq('id', selected.id)
     setProperties(prev => prev.map(p => p.id === selected.id ? { ...p, ...update } : p))
     setSelected(null); setDetailData(null); setConfirmAction(null); setSaving(false)
@@ -155,24 +473,24 @@ function PropertyProfileTab() {
     setProperties(prev => prev.map(prop => prop.id === p.id ? { ...prop, property_status: 'active', pause_reason: null } : prop))
   }
 
+  function handleNewProperty(newProp) {
+    if (newProp) setProperties(prev => [...prev, newProp])
+    setShowAddForm(false)
+  }
+
   const activeProps = properties.filter(p => (!p.property_status || p.property_status === 'active') && (p.name?.toLowerCase().includes(search.toLowerCase()) || p.address?.toLowerCase().includes(search.toLowerCase())))
   const inactiveProps = properties.filter(p => p.property_status === 'paused' || p.property_status === 'deleted')
 
   if (confirmAction) return (
-    <div>
-      <div className="card" style={{ maxWidth: 500 }}>
-        <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 8 }}>{confirmAction.type === 'pause' ? 'Pause property?' : 'Delete property?'}</div>
-        <div style={{ fontSize: 14, color: '#888', marginBottom: 16 }}>{confirmAction.type === 'pause' ? 'This property will be hidden from active operations until restored.' : 'This property will be marked as deleted. You can still view it but it will not appear in active operations.'}</div>
-        <div className="form-group">
-          <label className="label">Reason *</label>
-          <textarea className="input-field" rows={3} placeholder={`Reason for ${confirmAction.type}...`} value={confirmAction.reason} onChange={e => setConfirmAction({ ...confirmAction, reason: e.target.value })} />
-        </div>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button onClick={() => setConfirmAction(null)} className="btn-secondary" style={{ flex: 1 }}>Cancel</button>
-          <button onClick={applyAction} disabled={!required(confirmAction.reason) || saving} style={{ flex: 1, padding: 12, borderRadius: 8, fontWeight: 500, fontSize: 14, cursor: 'pointer', background: confirmAction.type === 'pause' ? '#fef3c7' : '#fee2e2', color: confirmAction.type === 'pause' ? '#92400e' : '#991b1b', border: 'none' }}>{saving ? 'Applying...' : confirmAction.type === 'pause' ? 'Pause property' : 'Delete property'}</button>
-        </div>
+    <div><div className="card" style={{ maxWidth: 500 }}>
+      <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 8 }}>{confirmAction.type === 'pause' ? 'Pause property?' : 'Delete property?'}</div>
+      <div style={{ fontSize: 14, color: '#888', marginBottom: 16 }}>{confirmAction.type === 'pause' ? 'This property will be hidden from active operations until restored.' : 'This property will be marked as deleted.'}</div>
+      <div className="form-group"><label className="label">Reason *</label><textarea className="input-field" rows={3} placeholder={`Reason for ${confirmAction.type}...`} value={confirmAction.reason} onChange={e => setConfirmAction({ ...confirmAction, reason: e.target.value })} /></div>
+      <div style={{ display: 'flex', gap: 10 }}>
+        <button onClick={() => setConfirmAction(null)} className="btn-secondary" style={{ flex: 1 }}>Cancel</button>
+        <button onClick={applyAction} disabled={!required(confirmAction.reason) || saving} style={{ flex: 1, padding: 12, borderRadius: 8, fontWeight: 500, fontSize: 14, cursor: 'pointer', background: confirmAction.type === 'pause' ? '#fef3c7' : '#fee2e2', color: confirmAction.type === 'pause' ? '#92400e' : '#991b1b', border: 'none' }}>{saving ? 'Applying...' : confirmAction.type === 'pause' ? 'Pause property' : 'Delete property'}</button>
       </div>
-    </div>
+    </div></div>
   )
 
   if (selected) {
@@ -183,6 +501,8 @@ function PropertyProfileTab() {
     const enrichedComp = comp.map(d => ({ ...d, computed_status: computeDocStatus(d) }))
     const expiredDocs = enrichedComp.filter(d => d.computed_status === 'Expired')
     const dueSoonDocs = enrichedComp.filter(d => d.computed_status === 'Due Soon')
+    const amenities = (() => { try { return JSON.parse(selected.amenities || '[]') } catch { return [] } })()
+    const kb = (() => { try { return JSON.parse(selected.knowledge_base || '{}') } catch { return {} } })()
 
     return (
       <div>
@@ -194,15 +514,21 @@ function PropertyProfileTab() {
           </div>
         </div>
 
-        {enrichedComp.length === 0 && <div style={{ background: '#fff8ed', border: '1px solid #fed7aa', borderRadius: 10, padding: '12px 16px', marginBottom: 12, display: 'flex', alignItems: 'flex-start', gap: 10 }}><span style={{ fontSize: 18 }}>⚠️</span><div><div style={{ fontWeight: 600, fontSize: 14, color: '#92400e', marginBottom: 2 }}>No compliance documents added</div><div style={{ fontSize: 13, color: '#b45309' }}>Gas Safety, EICR, EPC, Insurance, or Fire Risk Assessment are missing. Scroll down to add them.</div></div></div>}
+        {enrichedComp.length === 0 && <div style={{ background: '#fff8ed', border: '0.5px solid #fed7aa', borderRadius: 10, padding: '12px 16px', marginBottom: 12, display: 'flex', alignItems: 'flex-start', gap: 10 }}><span style={{ fontSize: 18 }}>⚠️</span><div><div style={{ fontWeight: 600, fontSize: 14, color: '#92400e', marginBottom: 2 }}>No compliance documents added</div><div style={{ fontSize: 13, color: '#b45309' }}>Gas Safety, EICR, EPC, Insurance, or Fire Risk Assessment are missing.</div></div></div>}
 
+        {/* Header */}
         <div className="card" style={{ marginBottom: 12 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div><div style={{ fontWeight: 700, fontSize: 20, marginBottom: 4 }}>{selected.name}</div><div style={{ fontSize: 14, color: '#888', marginBottom: 8 }}>{selected.address}</div><div style={{ fontSize: 13, color: '#aaa' }}>{selected.bedroom} bed{selected.bathrooms ? ` · ${selected.bathrooms} bath` : ''} · Check-in: {selected.next_checkin ? new Date(selected.next_checkin).toLocaleDateString('en-GB') : 'Not set'}</div></div>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 20, marginBottom: 4 }}>{selected.name}</div>
+              <div style={{ fontSize: 14, color: '#888', marginBottom: 8 }}>{selected.address}</div>
+              <div style={{ fontSize: 13, color: '#aaa' }}>{selected.bedroom} bed{selected.bathrooms ? ` · ${selected.bathrooms} bath` : ''}{selected.max_guests ? ` · ${selected.max_guests} guests max` : ''}</div>
+            </div>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}><StatusBadge status={calculatedStatus} /><span style={{ fontSize: 11, color: '#aaa' }}>Auto-calculated</span></div>
           </div>
         </div>
 
+        {/* Readiness breakdown */}
         <div className="card" style={{ marginBottom: 12 }}>
           <div style={{ fontWeight: 600, marginBottom: 12 }}>Readiness Breakdown</div>
           {[{ label: 'Cleaning', badge: !lastJob ? 'badge-notready' : lastJob.status === 'Complete' ? 'badge-ready' : 'badge-atrisk', text: !lastJob ? 'No job recorded' : lastJob.status }, { label: 'Open issues', badge: openIssues.some(i => i.severity === 'Critical') ? 'badge-notready' : openIssues.some(i => i.severity === 'High') ? 'badge-atrisk' : openIssues.length > 0 ? 'badge-duesoon' : 'badge-ready', text: openIssues.length > 0 ? `${openIssues.length} open` : 'All clear' }, { label: 'Inventory', badge: restock.some(r => r.needs_restock) ? 'badge-atrisk' : 'badge-ready', text: restock.some(r => r.needs_restock) ? `${restock.filter(r => r.needs_restock).length} need restock` : 'All stocked' }, { label: 'Compliance', badge: expiredDocs.length > 0 ? 'badge-notready' : dueSoonDocs.length > 0 ? 'badge-atrisk' : 'badge-ready', text: expiredDocs.length > 0 ? `${expiredDocs.length} expired` : dueSoonDocs.length > 0 ? `${dueSoonDocs.length} due soon` : 'All valid' }].map(row => (
@@ -210,31 +536,36 @@ function PropertyProfileTab() {
           ))}
         </div>
 
-        {/* Knowledge Base - editable */}
+        {/* Features / amenities */}
+        {amenities.length > 0 && (
+          <div className="card" style={{ marginBottom: 12 }}>
+            <div style={{ fontWeight: 600, marginBottom: 10 }}>Features & amenities</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {amenities.map(a => <span key={a} style={{ padding: '4px 12px', borderRadius: 20, fontSize: 12, background: '#f0f0f0', color: '#555', fontWeight: 500 }}>{a}</span>)}
+            </div>
+          </div>
+        )}
+
+        {/* Knowledge base */}
         <div className="card" style={{ marginBottom: 12 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <div style={{ fontWeight: 600 }}>Knowledge Base</div>
-            <button onClick={() => { setEditSection(editSection === 'knowledge' ? null : 'knowledge'); setEditForm({ access_code: selected.access_code || '', linen_location: selected.linen_location || '', appliance_notes: selected.appliance_notes || '', knowledge_base_file: null }) }} style={{ fontSize: 12, color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}>{editSection === 'knowledge' ? 'Cancel' : 'Edit'}</button>
+            <button onClick={() => { if (editSection === 'kb') { setEditSection(null) } else { setEditSection('kb'); setEditKB({ ...kb }) } }} style={{ fontSize: 12, color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}>{editSection === 'kb' ? 'Cancel' : 'Edit'}</button>
           </div>
-          {editSection === 'knowledge' ? (
+          {editSection === 'kb' ? (
             <div>
-              <div className="form-group"><label className="label">Access code</label><input className="input-field" value={editForm.access_code} onChange={e => setEditForm({ ...editForm, access_code: e.target.value })} /></div>
-              <div className="form-group"><label className="label">Linen location</label><input className="input-field" value={editForm.linen_location} onChange={e => setEditForm({ ...editForm, linen_location: e.target.value })} /></div>
-              <div className="form-group"><label className="label">Appliance notes</label><textarea className="input-field" rows={3} value={editForm.appliance_notes} onChange={e => setEditForm({ ...editForm, appliance_notes: e.target.value })} /></div>
-              <div className="form-group"><label className="label">Upload new knowledge base PDF</label><input type="file" accept=".pdf" className="input-field" style={{ padding: 8 }} onChange={e => setEditForm({ ...editForm, knowledge_base_file: e.target.files[0] })} /></div>
-              <button className="btn-primary" onClick={savePropertyEdits} disabled={saving}>{saving ? 'Saving...' : 'Save knowledge base'}</button>
+              {KB_SECTIONS.map(section => <KBSection key={section.key} section={section} data={editKB} editMode={true} onChange={(key, val) => setEditKB(prev => ({ ...prev, [key]: val }))} />)}
+              <button className="btn-primary" onClick={saveKBEdits} disabled={saving} style={{ marginTop: 12 }}>{saving ? 'Saving...' : 'Save knowledge base'}</button>
             </div>
           ) : (
             <div>
-              {[['Access code', selected.access_code, 'monospace', 18, 700], ['Linen location', selected.linen_location, null, 14, 400], ['Appliance notes', selected.appliance_notes, null, 14, 400]].map(([label, val, font, size, weight]) => (
-                <div key={label} style={{ marginBottom: 8 }}><div style={{ fontSize: 11, color: '#aaa', marginBottom: 2 }}>{label}</div><div style={{ fontSize: size, fontWeight: weight, fontFamily: font || 'inherit' }}>{val || 'Not set'}</div></div>
-              ))}
-              {selected.knowledge_base_url && <a href={selected.knowledge_base_url} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: '#2563eb', fontWeight: 500 }}>📄 View knowledge base PDF →</a>}
+              {KB_SECTIONS.map(section => <KBSection key={section.key} section={section} data={kb} editMode={false} onChange={() => {}} />)}
+              {selected.knowledge_base_url && <div style={{ marginTop: 10 }}><a href={selected.knowledge_base_url} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: '#2563eb', fontWeight: 500 }}>📄 View knowledge base PDF →</a></div>}
             </div>
           )}
         </div>
 
-        {/* Property Details - editable */}
+        {/* Property Details */}
         <div className="card" style={{ marginBottom: 12 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
             <div style={{ fontWeight: 600 }}>Property Details</div>
@@ -246,7 +577,7 @@ function PropertyProfileTab() {
               <div className="form-group"><label className="label">Address</label><input className="input-field" value={editForm.address} onChange={e => setEditForm({ ...editForm, address: e.target.value })} /></div>
               <div style={{ display: 'flex', gap: 10 }}>
                 <div className="form-group" style={{ flex: 1 }}><label className="label">Bedrooms</label><input className="input-field" type="number" min="1" value={editForm.bedroom} onChange={e => setEditForm({ ...editForm, bedroom: e.target.value })} /></div>
-                <div className="form-group" style={{ flex: 1 }}><label className="label">Bathrooms</label><input className="input-field" type="number" min="1" value={editForm.bathrooms} onChange={e => setEditForm({ ...editForm, bathrooms: e.target.value })} /></div>
+                <div className="form-group" style={{ flex: 1 }}><label className="label">Bathrooms</label><input className="input-field" type="number" min="0" value={editForm.bathrooms} onChange={e => setEditForm({ ...editForm, bathrooms: e.target.value })} /></div>
               </div>
               <div className="form-group"><label className="label">Next check-in</label><input className="input-field" type="datetime-local" value={editForm.next_checkin} onChange={e => setEditForm({ ...editForm, next_checkin: e.target.value })} /></div>
               <button className="btn-primary" onClick={savePropertyEdits} disabled={saving}>{saving ? 'Saving...' : 'Save details'}</button>
@@ -259,7 +590,7 @@ function PropertyProfileTab() {
           )}
         </div>
 
-        {/* Cleaning History */}
+        {/* Cleaning history */}
         <div className="card" style={{ marginBottom: 12 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
             <div style={{ fontWeight: 600 }}>Cleaning History ({jobs.length})</div>
@@ -280,7 +611,7 @@ function PropertyProfileTab() {
           {showIssueHistory && issues.filter(i => i.status === 'Closed' || i.status === 'Fixed').map(issue => <div key={issue.id} style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0', background: '#fafafa' }}><div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}><div style={{ display: 'flex', gap: 6 }}><SeverityBadge s={issue.severity} /><span style={{ fontSize: 13 }}>{issue.category}</span></div><span className="badge badge-ready">{issue.status}</span></div><div style={{ fontSize: 13, color: '#888' }}>{issue.description}</div></div>)}
         </div>
 
-        {/* Inventory - editable */}
+        {/* Inventory */}
         <div className="card" style={{ marginBottom: 12 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
             <div style={{ fontWeight: 600 }}>Inventory</div>
@@ -289,28 +620,13 @@ function PropertyProfileTab() {
           {restock.length === 0 && <div style={{ fontSize: 13, color: '#aaa' }}>No inventory items.</div>}
           {editSection === 'inventory' ? (
             <div>
-              {editInventory.map((item, idx) => (
-                <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: '1px solid #f0f0f0' }}>
-                  <span style={{ flex: 1, fontSize: 13 }}>{item.item_name}</span>
-                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                    <span style={{ fontSize: 12, color: '#aaa' }}>Min</span>
-                    <input type="number" min="0" style={{ width: 52, padding: '4px 6px', border: '1px solid #e0e0e0', borderRadius: 6, fontSize: 13, textAlign: 'center' }} value={item.minimum_quantity} onChange={e => setEditInventory(prev => prev.map((it, i) => i === idx ? { ...it, minimum_quantity: e.target.value } : it))} />
-                    <span style={{ fontSize: 12, color: '#aaa' }}>Cur</span>
-                    <input type="number" min="0" style={{ width: 52, padding: '4px 6px', border: '1px solid #e0e0e0', borderRadius: 6, fontSize: 13, textAlign: 'center' }} value={item.current_quantity} onChange={e => setEditInventory(prev => prev.map((it, i) => i === idx ? { ...it, current_quantity: e.target.value } : it))} />
-                  </div>
-                </div>
-              ))}
+              {editInventory.map((item, idx) => <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: '1px solid #f0f0f0' }}><span style={{ flex: 1, fontSize: 13 }}>{item.item_name}</span><div style={{ display: 'flex', gap: 6, alignItems: 'center' }}><span style={{ fontSize: 12, color: '#aaa' }}>Min</span><input type="number" min="0" style={{ width: 52, padding: '4px 6px', border: '1px solid #e0e0e0', borderRadius: 6, fontSize: 13, textAlign: 'center' }} value={item.minimum_quantity} onChange={e => setEditInventory(prev => prev.map((it, i) => i === idx ? { ...it, minimum_quantity: e.target.value } : it))} /><span style={{ fontSize: 12, color: '#aaa' }}>Cur</span><input type="number" min="0" style={{ width: 52, padding: '4px 6px', border: '1px solid #e0e0e0', borderRadius: 6, fontSize: 13, textAlign: 'center' }} value={item.current_quantity} onChange={e => setEditInventory(prev => prev.map((it, i) => i === idx ? { ...it, current_quantity: e.target.value } : it))} /></div></div>)}
               <button className="btn-primary" onClick={saveInventoryEdits} disabled={saving} style={{ marginTop: 12 }}>{saving ? 'Saving...' : 'Save inventory'}</button>
             </div>
-          ) : restock.map(item => (
-            <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid #f0f0f0' }}>
-              <span style={{ fontSize: 13 }}>{item.item_name}</span>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><span style={{ fontSize: 13, color: item.needs_restock ? '#dc2626' : '#16a34a' }}>{item.current_quantity}/{item.minimum_quantity}</span><span className={`badge ${item.needs_restock ? 'badge-notready' : 'badge-ready'}`}>{item.needs_restock ? 'Restock' : 'OK'}</span></div>
-            </div>
-          ))}
+          ) : restock.map(item => <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid #f0f0f0' }}><span style={{ fontSize: 13 }}>{item.item_name}</span><div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><span style={{ fontSize: 13, color: item.needs_restock ? '#dc2626' : '#16a34a' }}>{item.current_quantity}/{item.minimum_quantity}</span><span className={`badge ${item.needs_restock ? 'badge-notready' : 'badge-ready'}`}>{item.needs_restock ? 'Restock' : 'OK'}</span></div></div>)}
         </div>
 
-        {/* Compliance - editable */}
+        {/* Compliance */}
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <div style={{ fontWeight: 600 }}>Compliance ({enrichedComp.length})</div>
@@ -348,10 +664,10 @@ function PropertyProfileTab() {
 
       {showPaused ? (
         <div style={{ marginBottom: 20 }}>
-          <div style={{ fontWeight: 600, marginBottom: 10, fontSize: 14 }}>Paused and deleted properties ({inactiveProps.length})</div>
-          {!inactiveProps.length && <div className="empty-state">No paused or deleted properties.</div>}
+          <div style={{ fontWeight: 600, marginBottom: 10, fontSize: 14 }}>Paused and deleted ({inactiveProps.length})</div>
+          {!inactiveProps.length && <div className="empty-state">None.</div>}
           {inactiveProps.map(p => (
-            <div key={p.id} className="card" style={{ marginBottom: 8, opacity: 0.85 }}>
+            <div key={p.id} className="card" style={{ marginBottom: 8, opacity: 0.8 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div><div style={{ fontWeight: 600, marginBottom: 4 }}>{p.name}</div><div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>{p.address}</div><div style={{ fontSize: 12, color: '#aaa' }}>{p.property_status === 'paused' ? `Paused: ${p.pause_reason}` : `Deleted: ${p.delete_reason}`}</div></div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
@@ -364,43 +680,22 @@ function PropertyProfileTab() {
         </div>
       ) : (
         <>
-      {showAddForm && (
-        <div className="card" style={{ marginBottom: 16 }}>
-          <div style={{ fontWeight: 600, marginBottom: 16 }}>Add new property</div>
-          <div className="form-group"><label className="label">Property name *</label><input className="input-field" placeholder="e.g. The Mill House" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /><FieldError msg={errors.name} /></div>
-          <div style={{ fontSize: 13, fontWeight: 600, color: '#444', margin: '4px 0 10px' }}>Address</div>
-          <div className="form-group"><label className="label">House / flat number *</label><input className="input-field" placeholder="e.g. 12 or Flat 4B" value={form.house_no} onChange={e => setForm({ ...form, house_no: e.target.value })} /><FieldError msg={errors.house_no} /></div>
-          <div className="form-group"><label className="label">Street (Address line 1) *</label><input className="input-field" placeholder="e.g. Mill Lane" value={form.address_line1} onChange={e => setForm({ ...form, address_line1: e.target.value })} /><FieldError msg={errors.address_line1} /></div>
-          <div className="form-group"><label className="label">Address line 2 (optional)</label><input className="input-field" placeholder="e.g. Headingley" value={form.address_line2} onChange={e => setForm({ ...form, address_line2: e.target.value })} /></div>
-          <div className="form-group"><label className="label">City *</label><input className="input-field" placeholder="e.g. Leeds" value={form.city} onChange={e => setForm({ ...form, city: e.target.value })} /><FieldError msg={errors.city} /></div>
-          <div className="form-group"><label className="label">Postcode *</label><input className="input-field" placeholder="e.g. LS1 5DQ" value={form.postcode} onChange={e => setForm({ ...form, postcode: e.target.value })} style={{ textTransform: 'uppercase' }} /><FieldError msg={errors.postcode} /></div>
-          <div className="form-group"><label className="label">Country</label><input className="input-field" value={form.country} onChange={e => setForm({ ...form, country: e.target.value })} /></div>
-          <div style={{ fontSize: 13, fontWeight: 600, color: '#444', margin: '4px 0 10px' }}>Property details</div>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <div className="form-group" style={{ flex: 1 }}><label className="label">Bedrooms *</label><input className="input-field" type="number" min="1" placeholder="e.g. 2" value={form.bedroom} onChange={e => setForm({ ...form, bedroom: e.target.value })} /><FieldError msg={errors.bedroom} /></div>
-            <div className="form-group" style={{ flex: 1 }}><label className="label">Bathrooms</label><input className="input-field" type="number" min="1" placeholder="e.g. 1" value={form.bathrooms} onChange={e => setForm({ ...form, bathrooms: e.target.value })} /></div>
+          {showAddForm && <AddPropertyStepper onSave={handleNewProperty} onCancel={() => setShowAddForm(false)} agencies={agencies} />}
+          {!activeProps.length && <div className="empty-state">No properties found.</div>}
+          <div style={{ display: 'grid', gap: 12 }}>
+            {activeProps.map(p => (
+              <div key={p.id} className="card" style={{ cursor: 'pointer' }} onClick={() => openProperty(p)}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 16, marginBottom: 4 }}>{p.name}</div>
+                    <div style={{ fontSize: 13, color: '#888', marginBottom: 6 }}>{p.address}</div>
+                    <div style={{ fontSize: 12, color: '#aaa' }}>{p.bedroom} bed{p.bathrooms ? ` · ${p.bathrooms} bath` : ''}{p.max_guests ? ` · ${p.max_guests} guests` : ''} · Check-in: {p.next_checkin ? new Date(p.next_checkin).toLocaleDateString('en-GB') : 'Not set'}</div>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}><StatusBadge status={p.readiness_status} /><span style={{ fontSize: 12, color: '#aaa' }}>Tap to view →</span></div>
+                </div>
+              </div>
+            ))}
           </div>
-          <div className="form-group"><label className="label">Next check-in date and time</label><input className="input-field" type="datetime-local" value={form.next_checkin} onChange={e => setForm({ ...form, next_checkin: e.target.value })} /></div>
-          <div style={{ fontSize: 13, fontWeight: 600, color: '#444', margin: '4px 0 10px' }}>Knowledge base</div>
-          <div className="form-group"><label className="label">Access code</label><input className="input-field" placeholder="e.g. 4521#" value={form.access_code} onChange={e => setForm({ ...form, access_code: e.target.value })} /></div>
-          <div className="form-group"><label className="label">Linen location</label><input className="input-field" placeholder="e.g. Airing cupboard on landing" value={form.linen_location} onChange={e => setForm({ ...form, linen_location: e.target.value })} /></div>
-          <div className="form-group"><label className="label">Appliance notes</label><textarea className="input-field" rows={3} placeholder="Boiler location, special instructions..." value={form.appliance_notes} onChange={e => setForm({ ...form, appliance_notes: e.target.value })} /></div>
-          <div className="form-group"><label className="label">Upload knowledge base (PDF, optional)</label><input type="file" accept=".pdf" className="input-field" style={{ padding: '8px' }} onChange={e => setForm({ ...form, knowledge_base_file: e.target.files[0] })} />{form.knowledge_base_file && <div style={{ fontSize: 12, color: '#16a34a', marginTop: 4 }}>✓ {form.knowledge_base_file.name}</div>}</div>
-          <button className="btn-primary" onClick={saveProperty} disabled={saving}>{saving ? 'Saving...' : 'Save property'}</button>
-        </div>
-      )}
-
-      {!activeProps.length && <div className="empty-state">No properties found.</div>}
-      <div style={{ display: 'grid', gap: 12 }}>
-        {activeProps.map(p => (
-          <div key={p.id} className="card" style={{ cursor: 'pointer' }} onClick={() => openProperty(p)}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <div><div style={{ fontWeight: 600, fontSize: 16, marginBottom: 4 }}>{p.name}</div><div style={{ fontSize: 13, color: '#888', marginBottom: 6 }}>{p.address}</div><div style={{ fontSize: 12, color: '#aaa' }}>{p.bedroom} bed{p.bathrooms ? ` · ${p.bathrooms} bath` : ''} · Check-in: {p.next_checkin ? new Date(p.next_checkin).toLocaleDateString('en-GB') : 'Not set'}</div></div>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}><StatusBadge status={p.readiness_status} /><span style={{ fontSize: 12, color: '#aaa' }}>Tap to view →</span></div>
-            </div>
-          </div>
-        ))}
-      </div>
         </>
       )}
     </div>
