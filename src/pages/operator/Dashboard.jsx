@@ -677,7 +677,7 @@ function PropertyProfileTab() {
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, marginBottom: 10, flexWrap: 'wrap', gap: 6 }}>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  {[{ k: 'default', l: 'Default' }, { k: 'restock_first', l: 'Restock first' }, { k: 'enough_first', l: 'Enough first' }, { k: 'extra_first', l: 'Extra first' }].map(s => (
+                  {[{ k: 'default', l: 'Default' }, { k: 'restock_first', l: 'Restock' }, { k: 'enough_first', l: 'Enough' }, { k: 'extra_first', l: 'Extra' }].map(s => (
                     <button key={s.k} onClick={() => setInvSort(s.k)} style={{ padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 500, cursor: 'pointer', border: '0.5px solid #e0e0e0', background: invSort === s.k ? '#0a0a0a' : '#f7f7f7', color: invSort === s.k ? '#fff' : '#666' }}>{s.l}</button>
                   ))}
                 </div>
@@ -700,14 +700,14 @@ function PropertyProfileTab() {
                   <button className="btn-primary" onClick={saveInventoryEdits} disabled={saving} style={{ marginTop: 12 }}>{saving ? 'Saving...' : 'Save inventory'}</button>
                 </div>
               ) : (
-                [...restock].sort((a, b) => {
-                  const sc = i => i.needs_restock ? 0 : i.current_quantity > i.minimum_quantity * 1.5 ? 2 : 1
-                  if (invSort === 'restock_first') return sc(a) - sc(b)
-                  if (invSort === 'enough_first') return (sc(a) === 1 ? -1 : 1) - (sc(b) === 1 ? -1 : 1)
-                  if (invSort === 'extra_first') return sc(b) - sc(a)
-                  return 0
+                [...restock].filter(item => {
+                  const isExtra = !item.needs_restock && item.current_quantity > item.minimum_quantity
+                  if (invSort === 'restock_first') return item.needs_restock
+                  if (invSort === 'enough_first') return !item.needs_restock && !isExtra
+                  if (invSort === 'extra_first') return isExtra
+                  return true
                 }).map(item => {
-                  const isExtra = !item.needs_restock && item.current_quantity > item.minimum_quantity * 1.5
+                  const isExtra = !item.needs_restock && item.current_quantity > item.minimum_quantity
                   const status = item.needs_restock ? 'restock' : isExtra ? 'extra' : 'enough'
                   return (
                     <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #f0f0f0', background: status === 'restock' ? '#fff8f8' : status === 'extra' ? '#fffbf0' : 'transparent' }}>
@@ -774,7 +774,7 @@ function PropertyProfileTab() {
             </div>
           ) : (() => {
               const sortedRestock = [...restock].sort((a, b) => {
-                const sc = i => i.needs_restock ? 0 : i.current_quantity > i.minimum_quantity * 1.5 ? 2 : 1
+                const sc = i => i.needs_restock ? 0 : i.current_quantity > i.minimum_quantity ? 2 : 1
                 if (invSort === 'restock_first') return sc(a) - sc(b)
                 if (invSort === 'enough_first') return (sc(a) === 1 ? -1 : 1) - (sc(b) === 1 ? -1 : 1)
                 if (invSort === 'extra_first') return sc(b) - sc(a)
@@ -785,7 +785,7 @@ function PropertyProfileTab() {
                   <span style={{ fontSize: 13 }}>{item.item_name}</span>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                     <span style={{ fontSize: 13, color: item.needs_restock ? '#dc2626' : '#555', fontWeight: 500 }}>{item.current_quantity}<span style={{ color: '#aaa', fontWeight: 400 }}>/{item.minimum_quantity}</span></span>
-                    <span className={`badge ${item.needs_restock ? 'badge-notready' : item.current_quantity > item.minimum_quantity * 1.5 ? 'badge-atrisk' : 'badge-ready'}`}>{item.needs_restock ? 'Needs restock' : item.current_quantity > item.minimum_quantity * 1.5 ? 'Extra' : 'Enough'}</span>
+                    <span className={`badge ${item.needs_restock ? 'badge-notready' : item.current_quantity > item.minimum_quantity ? 'badge-atrisk' : 'badge-ready'}`}>{item.needs_restock ? 'Needs restock' : item.current_quantity > item.minimum_quantity ? 'Extra' : 'Enough'}</span>
                   </div>
                 </div>
               ))
@@ -1361,7 +1361,7 @@ function IssuesTab() {
 // ── INVENTORY ────────────────────────────────────────────────────────
 function getInvStatus(item) {
   if (item.needs_restock) return 'restock'
-  if (item.current_quantity > item.minimum_quantity * 1.5) return 'extra'
+  if (item.current_quantity > item.minimum_quantity) return 'extra'
   return 'enough'
 }
 
@@ -1390,12 +1390,11 @@ function InventoryTab() {
 
   const baseFiltered = selectedPropertyId === 'all' ? items : items.filter(item => String(item.property_id) === String(selectedPropertyId))
 
-  const filtered = [...baseFiltered].sort((a, b) => {
-    const score = i => ({ restock: 0, enough: 1, extra: 2 }[getInvStatus(i)] ?? 1)
-    if (sortMode === 'restock_first') return score(a) - score(b)
-    if (sortMode === 'enough_first') return (getInvStatus(a) === 'enough' ? -1 : 1) - (getInvStatus(b) === 'enough' ? -1 : 1)
-    if (sortMode === 'extra_first') return score(b) - score(a)
-    return 0
+  const filtered = baseFiltered.filter(item => {
+    if (sortMode === 'restock_first') return getInvStatus(item) === 'restock'
+    if (sortMode === 'enough_first') return getInvStatus(item) === 'enough'
+    if (sortMode === 'extra_first') return getInvStatus(item) === 'extra'
+    return true
   })
 
   const needsRestockCount = baseFiltered.filter(i => i.needs_restock).length
@@ -1424,7 +1423,7 @@ function InventoryTab() {
       {/* Sort filters */}
       {!editMode && filtered.length > 0 && (
         <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
-          {[{ key: 'default', label: 'Default' }, { key: 'restock_first', label: 'Restock first' }, { key: 'enough_first', label: 'Enough first' }, { key: 'extra_first', label: 'Extra first' }].map(s => (
+          {[{ key: 'default', label: 'Default' }, { key: 'restock_first', label: 'Needs restock' }, { key: 'enough_first', label: 'Enough' }, { key: 'extra_first', label: 'Extra' }].map(s => (
             <button key={s.key} onClick={() => setSortMode(s.key)} style={{ padding: '5px 12px', borderRadius: 20, fontSize: 12, fontWeight: 500, cursor: 'pointer', border: '0.5px solid #e0e0e0', background: sortMode === s.key ? '#0a0a0a' : '#f7f7f7', color: sortMode === s.key ? '#fff' : '#555' }}>{s.label}</button>
           ))}
         </div>
