@@ -897,15 +897,31 @@ function VendorDirectoryTab() {
   }
 
   async function saveEdit() {
+    if (!selected || !selectedType) return
     setSaving(true)
-    const table = selectedType === 'vendor' ? 'Vendors' : 'Cleaners'
-    const pt = editForm.trades || []
-    const updateData = { name: editForm.name, phone: editForm.phone, email: editForm.email, trades: JSON.stringify(pt), trade: pt[0] || '', agency_name: editForm.agency_name }
-    const { data } = await supabase.from(table).update(updateData).eq('id', selected.id).select().single()
-    setSelected(data)
-    if (selectedType === 'vendor') setVendors(prev => prev.map(v => v.id === selected.id ? data : v))
-    else setCleaners(prev => prev.map(c => c.id === selected.id ? data : c))
-    setEditMode(false); setSaving(false)
+    try {
+      const table = selectedType === 'vendor' ? 'Vendors' : 'Cleaners'
+      const pt = editForm.trades || []
+      const updateData = {
+        name: editForm.name,
+        phone: editForm.phone,
+        email: editForm.email,
+        trades: JSON.stringify(pt),
+        trade: pt[0] || '',
+        agency_name: editForm.agency_name || 'No agency'
+      }
+      const { data, error } = await supabase.from(table).update(updateData).eq('id', selected.id).select().single()
+      if (error) { console.error('Save error:', error); setSaving(false); return }
+      if (data) {
+        setSelected(data)
+        if (selectedType === 'vendor') setVendors(prev => prev.map(v => v.id === selected.id ? data : v))
+        else setCleaners(prev => prev.map(c => c.id === selected.id ? data : c))
+      }
+      setEditMode(false)
+    } catch (err) {
+      console.error('Save error:', err)
+    }
+    setSaving(false)
   }
 
   function validatePerson() {
@@ -929,7 +945,8 @@ function VendorDirectoryTab() {
     if (!validatePerson()) return; setSaving(true)
     const agencyName = personForm.agency_id ? agencies.find(a => String(a.id) === String(personForm.agency_id))?.name || 'No agency' : 'No agency'
     const tradesJson = JSON.stringify(personForm.trades)
-    if (personForm.role === 'cleaner') {
+    const isCleaner = personForm.trades.includes('Cleaner')
+    if (isCleaner) {
       const { data } = await supabase.from('Cleaners').insert({ name: personForm.name, phone: personForm.phone, email: personForm.email, agency_name: agencyName, trades: tradesJson }).select()
       setCleaners(prev => [...prev, ...(data || [])])
     } else {
@@ -1120,17 +1137,7 @@ function VendorDirectoryTab() {
       {showPersonForm && (
         <div className="card" style={{ marginBottom: 16 }}>
           <div style={{ fontWeight: 600, marginBottom: 16 }}>Add vendor / cleaner</div>
-          {/* Role selector */}
-          <div className="form-group">
-            <label className="label">Role *</label>
-            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-              {['vendor', 'cleaner'].map(role => (
-                <button key={role} onClick={() => setPersonForm({ ...personForm, role })} style={{ flex: 1, padding: '10px', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', border: `1.5px solid ${personForm.role === role ? '#0a0a0a' : '#e0e0e0'}`, background: personForm.role === role ? '#0a0a0a' : '#fafafa', color: personForm.role === role ? '#fff' : '#555' }}>
-                  {role.charAt(0).toUpperCase() + role.slice(1)}
-                </button>
-              ))}
-            </div>
-          </div>
+
           <div className="form-group"><label className="label">Full name *</label><input className="input-field" placeholder="e.g. Dave Smith" value={personForm.name} onChange={e => setPersonForm({ ...personForm, name: e.target.value })} /><FieldError msg={errors.name} /></div>
           <div className="form-group"><label className="label">Phone *</label><input className="input-field" placeholder="07xxx xxxxxx" value={personForm.phone} onChange={e => setPersonForm({ ...personForm, phone: e.target.value })} /><FieldError msg={errors.phone} /></div>
           <div className="form-group"><label className="label">Email</label><input className="input-field" type="email" placeholder="email@example.com" value={personForm.email} onChange={e => setPersonForm({ ...personForm, email: e.target.value })} /><FieldError msg={errors.email} /></div>
@@ -1147,7 +1154,7 @@ function VendorDirectoryTab() {
             <FieldError msg={errors.trades} />
           </div>
           <div className="form-group"><label className="label">Agency (if any)</label><select className="input-field" value={personForm.agency_id} onChange={e => setPersonForm({ ...personForm, agency_id: e.target.value })}><option value="">No agency</option>{agencies.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></div>
-          <button className="btn-primary" onClick={savePerson} disabled={saving}>{saving ? 'Saving...' : `Save ${personForm.role}`}</button>
+          <button className="btn-primary" onClick={savePerson} disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
         </div>
       )}
 
