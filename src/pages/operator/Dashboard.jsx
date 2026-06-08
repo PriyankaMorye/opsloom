@@ -1329,9 +1329,16 @@ function IssuesTab() {
     setReporting(true)
     let photoUrl = null
     if (reportForm.photo) photoUrl = await uploadFile(reportForm.photo, 'issues')
-    await supabase.from('issues').insert({ property_id: reportForm.property_id, category: reportForm.category, severity: reportForm.severity, description: reportForm.description.trim(), status: 'Open', issue_photo_url: photoUrl })
-    const { data } = await supabase.from('issues').select('*').neq('status', 'Closed')
-    setIssues(data || [])
+    const { data: newIssue, error } = await supabase.from('issues').insert({
+      property_id: parseInt(reportForm.property_id),
+      category: reportForm.category,
+      severity: reportForm.severity,
+      description: reportForm.description.trim(),
+      status: 'Open',
+      issue_photo_url: photoUrl
+    }).select().single()
+    if (error) { alert('Error creating issue: ' + error.message); setReporting(false); return }
+    if (newIssue) setIssues(prev => [newIssue, ...prev])
     setReportForm({ property_id: '', category: 'Maintenance', severity: 'Medium', description: '', photo: null })
     setShowReportForm(false); setReportErrors({}); setReporting(false)
   }
