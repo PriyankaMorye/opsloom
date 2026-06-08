@@ -32,13 +32,36 @@ function JobTab({ cleanerRecord, onJobSelect }) {
 
   useEffect(() => {
     if (!cleanerRecord) return
-    const today = new Date().toISOString().split('T')[0]
-    supabase.from('jobs').select('*, Properties(id, name, address, access_code, linen_location, appliance_notes, knowledge_base, knowledge_base_url)').eq('cleaner_id', cleanerRecord.id).gte('job_date', today).order('job_date', { ascending: true }).limit(10)
-      .then(({ data }) => {
-        setJobs(data || [])
-        if (data?.[0]) { onJobSelect(data[0]); setSelectedJobId(data[0].id) }
-        setLoading(false)
-      })
+    async function loadJobs() {
+      const today = new Date().toISOString().split('T')[0]
+      // Fetch jobs without join first
+      const { data: jobData, error: jobError } = await supabase
+        .from('jobs')
+        .select('*')
+        .eq('cleaner_id', cleanerRecord.id)
+        .gte('job_date', today)
+        .order('job_date', { ascending: true })
+        .limit(10)
+
+      if (jobError) { console.error('Jobs error:', jobError); setLoading(false); return }
+      if (!jobData || !jobData.length) { setLoading(false); return }
+
+      // Fetch properties separately
+      const propertyIds = [...new Set(jobData.map(j => j.property_id))]
+      const { data: propData } = await supabase
+        .from('Properties')
+        .select('*')
+        .in('id', propertyIds)
+
+      const propMap = {}
+      if (propData) propData.forEach(p => { propMap[p.id] = p })
+
+      const enriched = jobData.map(j => ({ ...j, Properties: propMap[j.property_id] || null }))
+      setJobs(enriched)
+      if (enriched[0]) { onJobSelect(enriched[0]); setSelectedJobId(enriched[0].id) }
+      setLoading(false)
+    }
+    loadJobs()
   }, [cleanerRecord])
 
   async function checkIn(job) {
