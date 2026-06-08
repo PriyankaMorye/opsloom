@@ -1625,13 +1625,73 @@ function JobsTab({ onCreateJob }) {
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('all')
   const [propertyFilter, setPropertyFilter] = useState('all')
+  const [selected, setSelected] = useState(null)
 
   useEffect(() => {
-    Promise.all([supabase.from('jobs').select('*').order('job_date', { ascending: false }), supabase.from('Properties').select('id, name'), supabase.from('Cleaners').select('id, name')]).then(([j, p, c]) => { setJobs(j.data || []); setProperties(p.data || []); setCleaners(c.data || []); setLoading(false) })
+    Promise.all([
+      supabase.from('jobs').select('*').order('job_date', { ascending: false }),
+      supabase.from('Properties').select('id, name'),
+      supabase.from('Cleaners').select('id, name'),
+    ]).then(([j, p, c]) => { setJobs(j.data || []); setProperties(p.data || []); setCleaners(c.data || []); setLoading(false) })
   }, [])
+
+  async function closeJob(job) {
+    if (!window.confirm('Mark this job as complete?')) return
+    const { data } = await supabase.from('jobs').update({ status: 'Complete', readiness_percent: 100 }).eq('id', job.id).select().single()
+    setJobs(prev => prev.map(j => j.id === job.id ? data : j))
+    if (selected?.id === job.id) setSelected(data)
+  }
+
+  async function deleteJob(job) {
+    if (!window.confirm('Delete this job? This cannot be undone.')) return
+    await supabase.from('jobs').delete().eq('id', job.id)
+    setJobs(prev => prev.filter(j => j.id !== job.id))
+    if (selected?.id === job.id) setSelected(null)
+  }
 
   const filtered = jobs.filter(j => (statusFilter === 'all' || j.status === statusFilter) && (propertyFilter === 'all' || String(j.property_id) === String(propertyFilter)))
   if (loading) return <div className="empty-state">Loading jobs...</div>
+
+  if (selected) {
+    const prop = properties.find(p => String(p.id) === String(selected.property_id))
+    const cleaner = cleaners.find(c => String(c.id) === String(selected.cleaner_id))
+    return (
+      <div>
+        <button onClick={() => setSelected(null)} style={{ background: 'none', border: '1px solid #e0e0e0', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', marginBottom: 16, color: '#555' }}>← Back to jobs</button>
+        <div className="card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 20, marginBottom: 6 }}>{prop?.name || '—'}</div>
+              <span className={`badge ${selected.status === 'Complete' ? 'badge-ready' : selected.status === 'In progress' ? 'badge-atrisk' : 'badge-notready'}`}>{selected.status || 'Not started'}</span>
+            </div>
+          </div>
+          <div style={{ display: 'grid', gap: 10, marginBottom: 14 }}>
+            {[['Cleaner', cleaner?.name || '—'], ['Date', selected.job_date ? new Date(selected.job_date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }) : '—'], ['Check-in', selected.checkin_time ? new Date(selected.checkin_time).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : 'Not set']].map(([label, val]) => (
+              <div key={label} style={{ display: 'flex', gap: 10 }}>
+                <span style={{ fontSize: 13, color: '#aaa', width: 80, flexShrink: 0 }}>{label}</span>
+                <span style={{ fontSize: 13, fontWeight: 500 }}>{val}</span>
+              </div>
+            ))}
+            {selected.notes && <div style={{ display: 'flex', gap: 10 }}><span style={{ fontSize: 13, color: '#aaa', width: 80 }}>Notes</span><span style={{ fontSize: 13 }}>{selected.notes}</span></div>}
+          </div>
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+              <span style={{ fontSize: 13, color: '#888' }}>Progress</span>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>{selected.completed_tasks || 0}/{selected.total_tasks || 0} tasks · {selected.readiness_percent || 0}%</span>
+            </div>
+            <div style={{ height: 8, background: '#f0f0f0', borderRadius: 4 }}>
+              <div style={{ height: 8, borderRadius: 4, width: `${selected.readiness_percent || 0}%`, background: selected.readiness_percent === 100 ? '#16a34a' : '#d97706', transition: 'width 0.3s' }} />
+            </div>
+          </div>
+          <JobMagicLink job={selected} onUpdate={updated => { setSelected(updated); setJobs(prev => prev.map(j => j.id === updated.id ? updated : j)) }} />
+          <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+            {selected.status !== 'Complete' && <button onClick={() => closeJob(selected)} style={{ flex: 1, padding: 12, borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', background: '#dcfce7', color: '#166534', border: 'none' }}>✓ Mark complete</button>}
+            <button onClick={() => deleteJob(selected)} style={{ flex: 1, padding: 12, borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', background: '#fee2e2', color: '#991b1b', border: 'none' }}>Delete job</button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div>
@@ -1640,13 +1700,36 @@ function JobsTab({ onCreateJob }) {
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {['all', 'Not started', 'In progress', 'Complete'].map(f => <button key={f} onClick={() => setStatusFilter(f)} style={{ padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: 'pointer', background: statusFilter === f ? '#0a0a0a' : '#f0f0f0', color: statusFilter === f ? '#fff' : '#555', border: 'none' }}>{f === 'all' ? 'All statuses' : f}</button>)}
           </div>
-          <select className="input-field" style={{ maxWidth: 260, padding: '7px 12px', fontSize: 13 }} value={propertyFilter} onChange={e => setPropertyFilter(e.target.value)}><option value="all">All properties</option>{properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
+          <select className="input-field" style={{ maxWidth: 260, padding: '7px 12px', fontSize: 13 }} value={propertyFilter} onChange={e => setPropertyFilter(e.target.value)}>
+            <option value="all">All properties</option>
+            {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
         </div>
         <button onClick={onCreateJob} className="btn-primary" style={{ width: 'auto', padding: '8px 14px', fontSize: 13 }}>+ Create job</button>
       </div>
       {!filtered.length && <div className="empty-state">No jobs found.</div>}
       <div style={{ display: 'grid', gap: 10 }}>
-        {filtered.map(job => <div key={job.id} className="card"><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}><div><div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>{properties.find(p => String(p.id) === String(job.property_id))?.name || '—'}</div><div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>Cleaner: {cleaners.find(c => String(c.id) === String(job.cleaner_id))?.name || '—'}</div><div style={{ fontSize: 13, color: '#888' }}>Date: {job.job_date ? new Date(job.job_date).toLocaleDateString('en-GB') : '—'}{job.checkin_time && ` · Check-in: ${new Date(job.checkin_time).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`}</div>{job.notes && <div style={{ fontSize: 13, color: '#aaa', marginTop: 4 }}>Note: {job.notes}</div>}</div><span className={`badge ${job.status === 'Complete' ? 'badge-ready' : job.status === 'In progress' ? 'badge-atrisk' : 'badge-notready'}`}>{job.status || 'Not started'}</span></div><div style={{ height: 6, background: '#f0f0f0', borderRadius: 3 }}><div style={{ height: 6, borderRadius: 3, width: `${job.readiness_percent || 0}%`, background: job.readiness_percent === 100 ? '#16a34a' : '#d97706' }} /></div><div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>{job.readiness_percent || 0}% · {job.completed_tasks || 0}/{job.total_tasks || 0} tasks</div></div>)}
+        {filtered.map(job => (
+          <div key={job.id} className="card" style={{ cursor: 'pointer' }} onClick={() => setSelected(job)}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>{properties.find(p => String(p.id) === String(job.property_id))?.name || '—'}</div>
+                <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>Cleaner: {cleaners.find(c => String(c.id) === String(job.cleaner_id))?.name || '—'}</div>
+                <div style={{ fontSize: 13, color: '#888' }}>{job.job_date ? new Date(job.job_date).toLocaleDateString('en-GB') : '—'}</div>
+                {job.notes && <div style={{ fontSize: 12, color: '#aaa', marginTop: 4 }}>{job.notes}</div>}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+                <span className={`badge ${job.status === 'Complete' ? 'badge-ready' : job.status === 'In progress' ? 'badge-atrisk' : 'badge-notready'}`}>{job.status || 'Not started'}</span>
+                <div style={{ display: 'flex', gap: 6 }} onClick={e => e.stopPropagation()}>
+                  {job.status !== 'Complete' && <button onClick={() => closeJob(job)} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 500, cursor: 'pointer', background: '#dcfce7', color: '#166534', border: 'none' }}>Close</button>}
+                  <button onClick={() => deleteJob(job)} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 500, cursor: 'pointer', background: '#fee2e2', color: '#991b1b', border: 'none' }}>Delete</button>
+                </div>
+              </div>
+            </div>
+            <div style={{ height: 6, background: '#f0f0f0', borderRadius: 3 }}><div style={{ height: 6, borderRadius: 3, width: `${job.readiness_percent || 0}%`, background: job.readiness_percent === 100 ? '#16a34a' : '#d97706' }} /></div>
+            <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>{job.readiness_percent || 0}% · {job.completed_tasks || 0}/{job.total_tasks || 0} tasks</div>
+          </div>
+        ))}
       </div>
     </div>
   )
