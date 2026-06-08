@@ -400,19 +400,32 @@ function JobDetailView({ job, cleanerRecord, onBack, onJobStarted, onJobComplete
 
   async function startJob() {
     setStarting(true)
-    // Create checklist items if none exist
-    const { data: existing } = await supabase.from('Checklist_items').select('id').eq('job_id', job.id).limit(1)
-    if (!existing?.length) {
-      const toInsert = GENERIC_CHECKLIST.map(item => ({ job_id: job.id, room: item.room, task: item.task, done: false, photo_url: null }))
-      await supabase.from('Checklist_items').insert(toInsert)
+    // Delete any old checklist items for this job and recreate
+    await supabase.from('Checklist_items').delete().eq('job_id', job.id)
+    const toInsert = GENERIC_CHECKLIST.map(item => ({
+      job_id: job.id,
+      room: item.room,
+      task: item.task,
+      done: false,
+      photo_url: null
+    }))
+    const { error: insertError } = await supabase.from('Checklist_items').insert(toInsert)
+    if (insertError) {
+      alert('Error creating checklist: ' + insertError.message)
+      setStarting(false)
+      return
     }
-    await supabase.from('jobs').update({ status: 'In progress', started_at: new Date().toISOString() }).eq('id', job.id)
-    // Reload items
-    const { data: newItems } = await supabase.from('Checklist_items').select('*').eq('job_id', job.id).order('id', { ascending: true })
-    setItems(newItems || [])
-    setView('checklist')
+    await supabase.from('jobs').update({ status: 'In progress', started_at: new Date().toISOString(), total_tasks: toInsert.length, completed_tasks: 0, readiness_percent: 0 }).eq('id', job.id)
+    const { data: newItems, error: fetchError } = await supabase.from('Checklist_items').select('*').eq('job_id', job.id).order('id', { ascending: true })
+    if (fetchError) {
+      alert('Error loading checklist: ' + fetchError.message)
+      setStarting(false)
+      return
+    }
+    setItems(newItems || toInsert.map((t, i) => ({ ...t, id: i })))
     setStarting(false)
     onJobStarted && onJobStarted()
+    setView('checklist')
   }
 
   async function uploadPhoto(item, file) {
