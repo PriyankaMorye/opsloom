@@ -10,16 +10,12 @@ import MagicLinkJob from './pages/cleaner/MagicLinkJob'
 
 function OperatorApp() {
   const [view, setView] = useState('dashboard')
-
   return (
     <div>
-      {view === 'dashboard' && (
-        <OperatorDashboard onCreateJob={() => setView('create-job')} />
-      )}
+      {view === 'dashboard' && <OperatorDashboard onCreateJob={() => setView('create-job')} />}
       {view === 'create-job' && (
         <div style={{ minHeight: '100vh', background: '#f7f7f7' }}>
-          <div style={{ padding: '16px 24px', background: '#fff', borderBottom: '1px solid #f0f0f0',
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ padding: '16px 24px', background: '#fff', borderBottom: '1px solid #f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontWeight: 700, fontSize: 18 }}>OpsLoom</span>
           </div>
           <div style={{ padding: 24, maxWidth: 600, margin: '0 auto' }}>
@@ -36,23 +32,37 @@ export default function App() {
   const [role, setRole] = useState(null)
   const [loading, setLoading] = useState(true)
 
+  async function resolveRole(session) {
+    if (!session) { setRole(null); setLoading(false); return }
+    // Check Cleaners table first — most reliable
+    const { data: cleanerRecord } = await supabase
+      .from('Cleaners')
+      .select('id')
+      .eq('auth_user_id', session.user.id)
+      .maybeSingle()
+    if (cleanerRecord) {
+      setRole('cleaner')
+    } else {
+      // Fall back to user metadata
+      setRole(session.user.user_metadata?.role || 'operator')
+    }
+    setLoading(false)
+  }
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
-      if (session) setRole(session.user.user_metadata?.role || 'operator')
-      setLoading(false)
+      resolveRole(session)
     })
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
-      if (session) setRole(session.user.user_metadata?.role || 'operator')
-      else setRole(null)
+      resolveRole(session)
     })
     return () => subscription.unsubscribe()
   }, [])
 
-  // Public routes — always accessible, no login needed
-  const path = window.location.pathname
-  if (path.startsWith('/job/')) {
+  // Public magic link route — always accessible
+  if (window.location.pathname.startsWith('/job/')) {
     return (
       <Routes>
         <Route path="/job/:token" element={<MagicLinkJob />} />
