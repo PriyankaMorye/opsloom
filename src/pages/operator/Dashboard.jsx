@@ -7,7 +7,7 @@ import { createClient } from '@supabase/supabase-js'
 function getAdminClient() {
   const key = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY
   if (!key) return null
-  return createClient(import.meta.env.VITE_SUPABASE_URL, key)
+  return createClient('https://oxhcbmvoipifwtxypzmb.supabase.co', key)
 }
 
 // ── SHARED HELPERS ────────────────────────────────────────────────────
