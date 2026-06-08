@@ -34,18 +34,19 @@ export default function App() {
 
   async function resolveRole(session) {
     if (!session) { setRole(null); setLoading(false); return }
-    // Check Cleaners table first — most reliable
+
+    // Check Cleaners table first
     const { data: cleanerRecord } = await supabase
-      .from('Cleaners')
-      .select('id')
-      .eq('auth_user_id', session.user.id)
-      .maybeSingle()
-    if (cleanerRecord) {
-      setRole('cleaner')
-    } else {
-      // Fall back to user metadata
-      setRole(session.user.user_metadata?.role || 'operator')
-    }
+      .from('Cleaners').select('id').eq('auth_user_id', session.user.id).maybeSingle()
+    if (cleanerRecord) { setRole('cleaner'); setLoading(false); return }
+
+    // Check Vendors table
+    const { data: vendorRecord } = await supabase
+      .from('Vendors').select('id').eq('auth_user_id', session.user.id).maybeSingle()
+    if (vendorRecord) { setRole('vendor'); setLoading(false); return }
+
+    // Fall back to user metadata
+    setRole(session.user.user_metadata?.role || 'operator')
     setLoading(false)
   }
 
@@ -61,13 +62,9 @@ export default function App() {
     return () => subscription.unsubscribe()
   }, [])
 
-  // Public magic link route — always accessible
+  // Public magic link routes
   if (window.location.pathname.startsWith('/job/')) {
-    return (
-      <Routes>
-        <Route path="/job/:token" element={<MagicLinkJob />} />
-      </Routes>
-    )
+    return <Routes><Route path="/job/:token" element={<MagicLinkJob />} /></Routes>
   }
 
   if (loading) return (
@@ -90,22 +87,13 @@ export default function App() {
   return (
     <Routes>
       {role === 'operator' && (
-        <>
-          <Route path="/operator/*" element={<OperatorApp />} />
-          <Route path="*" element={<Navigate to="/operator" replace />} />
-        </>
+        <><Route path="/operator/*" element={<OperatorApp />} /><Route path="*" element={<Navigate to="/operator" replace />} /></>
       )}
       {role === 'cleaner' && (
-        <>
-          <Route path="/cleaner/*" element={<CleanerDashboard />} />
-          <Route path="*" element={<Navigate to="/cleaner" replace />} />
-        </>
+        <><Route path="/cleaner/*" element={<CleanerDashboard />} /><Route path="*" element={<Navigate to="/cleaner" replace />} /></>
       )}
       {role === 'vendor' && (
-        <>
-          <Route path="/vendor/*" element={<VendorDashboard />} />
-          <Route path="*" element={<Navigate to="/vendor" replace />} />
-        </>
+        <><Route path="/vendor/*" element={<VendorDashboard />} /><Route path="*" element={<Navigate to="/vendor" replace />} /></>
       )}
       <Route path="/job/:token" element={<MagicLinkJob />} />
     </Routes>
