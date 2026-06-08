@@ -1301,7 +1301,7 @@ function IssuesTab() {
 
   function getAssignee(issue) {
     if (!issue.vendor_id) return null
-    return vendors.find(v => v.id === issue.vendor_id) || cleaners.find(c => c.id === issue.vendor_id) || null
+    return vendors.find(v => String(v.id) === String(issue.vendor_id)) || cleaners.find(c => String(c.id) === String(issue.vendor_id)) || null
   }
   function getPropertyName(id) { return properties.find(p => String(p.id) === String(id))?.name || '—' }
 
@@ -1309,15 +1309,18 @@ function IssuesTab() {
 
   async function assignIssue(issueId, assigneeId) {
     setAssigning(true)
-    const status = assigneeId ? 'Assigned' : 'Open'
-    await supabase.from('issues').update({ vendor_id: assigneeId || null, status }).eq('id', issueId)
-    setIssues(issues.map(i => i.id === issueId ? { ...i, vendor_id: assigneeId || null, status } : i))
-    if (selected?.id === issueId) setSelected(prev => ({ ...prev, vendor_id: assigneeId || null, status }))
+    const vendorIdInt = assigneeId ? parseInt(assigneeId) : null
+    const status = vendorIdInt ? 'Assigned' : 'Open'
+    const { error } = await supabase.from('issues').update({ vendor_id: vendorIdInt, status }).eq('id', issueId)
+    if (error) { alert('Error: ' + error.message); setAssigning(false); return }
+    setIssues(issues.map(i => i.id === issueId ? { ...i, vendor_id: vendorIdInt, status } : i))
+    if (selected?.id === issueId) setSelected(prev => ({ ...prev, vendor_id: vendorIdInt, status }))
     setAssigning(false)
   }
 
   async function closeIssue(issueId) {
-    await supabase.from('issues').update({ status: 'Closed' }).eq('id', issueId)
+    const { error } = await supabase.from('issues').update({ status: 'Closed' }).eq('id', issueId)
+    if (error) { alert('Error: ' + error.message); return }
     setIssues(issues.filter(i => i.id !== issueId)); setSelected(null); setCloseComment('')
   }
 
