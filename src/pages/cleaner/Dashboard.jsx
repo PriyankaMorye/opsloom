@@ -33,7 +33,7 @@ function JobTab({ cleanerRecord, onJobSelect }) {
   useEffect(() => {
     if (!cleanerRecord) return
     const today = new Date().toISOString().split('T')[0]
-    supabase.from('jobs').select('*, Properties(*)').eq('cleaner_id', cleanerRecord.id).gte('job_date', today).order('job_date', { ascending: true }).limit(10)
+    supabase.from('jobs').select('*, Properties(id, name, address, access_code, linen_location, appliance_notes, knowledge_base, knowledge_base_url)').eq('cleaner_id', cleanerRecord.id).gte('job_date', today).order('job_date', { ascending: true }).limit(10)
       .then(({ data }) => {
         setJobs(data || [])
         if (data?.[0]) { onJobSelect(data[0]); setSelectedJobId(data[0].id) }
