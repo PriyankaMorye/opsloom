@@ -1013,11 +1013,17 @@ function VendorDirectoryTab() {
             </div>
           )}
         </div>
-        {/* Access section — only for cleaners */}
+        {/* Access section — cleaners and vendors */}
         {selectedType === 'cleaner' && (
           <CleanerAccessSection cleaner={selected} onUpdate={updatedCleaner => {
             setSelected(updatedCleaner)
             setCleaners(prev => prev.map(c => c.id === updatedCleaner.id ? updatedCleaner : c))
+          }} />
+        )}
+        {selectedType === 'vendor' && (
+          <VendorAccessSection vendor={selected} onUpdate={updatedVendor => {
+            setSelected(updatedVendor)
+            setVendors(prev => prev.map(v => v.id === updatedVendor.id ? updatedVendor : v))
           }} />
         )}
 
@@ -1731,6 +1737,62 @@ function JobsTab({ onCreateJob }) {
           </div>
         ))}
       </div>
+    </div>
+  )
+}
+
+// ── VENDOR ACCESS SECTION ────────────────────────────────────────────
+function VendorAccessSection({ vendor, onUpdate }) {
+  const [showCreateLogin, setShowCreateLogin] = useState(false)
+  const [loginForm, setLoginForm] = useState({ email: vendor.email || '', password: '' })
+  const [creating, setCreating] = useState(false)
+  const [loginError, setLoginError] = useState('')
+  const [loginSuccess, setLoginSuccess] = useState(false)
+
+  const hasLogin = !!vendor.auth_user_id
+
+  async function createLogin() {
+    if (!loginForm.email || !loginForm.password) { setLoginError('Email and password are required'); return }
+    if (loginForm.password.length < 6) { setLoginError('Password must be at least 6 characters'); return }
+    setCreating(true); setLoginError('')
+    try {
+      const adminClient = getAdminClient()
+      if (!adminClient) { setLoginError('Service role key not configured in environment variables.'); setCreating(false); return }
+      const { data, error } = await adminClient.auth.admin.createUser({
+        email: loginForm.email, password: loginForm.password,
+        user_metadata: { role: 'vendor' }, email_confirm: true,
+      })
+      if (error) { setLoginError(error.message); setCreating(false); return }
+      const { data: updated } = await supabase.from('Vendors').update({ auth_user_id: data.user.id, email: loginForm.email }).eq('id', vendor.id).select().single()
+      setLoginSuccess(true); setShowCreateLogin(false); setCreating(false)
+      if (onUpdate && updated) onUpdate(updated)
+    } catch (err) { setLoginError(err.message); setCreating(false) }
+  }
+
+  return (
+    <div className="card" style={{ marginBottom: 16 }}>
+      <div style={{ fontWeight: 600, marginBottom: 12 }}>Access</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+        {hasLogin
+          ? <span style={{ fontSize: 12, background: '#dcfce7', color: '#166534', padding: '4px 12px', borderRadius: 20, fontWeight: 500 }}>✓ Has login account</span>
+          : <span style={{ fontSize: 12, background: '#f0f0f0', color: '#888', padding: '4px 12px', borderRadius: 20 }}>No login yet</span>
+        }
+      </div>
+      {loginSuccess && <div style={{ background: '#dcfce7', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: 13, color: '#166534' }}>✓ Login created. Share credentials with the vendor.</div>}
+      {!hasLogin && (
+        <button onClick={() => setShowCreateLogin(!showCreateLogin)} style={{ width: '100%', padding: '10px', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', border: '1px solid #e0e0e0', background: showCreateLogin ? '#f0f0f0' : '#fff', color: '#0a0a0a', marginBottom: showCreateLogin ? 12 : 0 }}>
+          {showCreateLogin ? 'Cancel' : '+ Create login'}
+        </button>
+      )}
+      {showCreateLogin && (
+        <div style={{ background: '#f7f7f7', borderRadius: 8, padding: 14 }}>
+          <div style={{ fontSize: 13, color: '#888', marginBottom: 10 }}>Create a login for this vendor.</div>
+          {loginError && <div style={{ background: '#fee2e2', borderRadius: 6, padding: '8px 12px', marginBottom: 10, fontSize: 12, color: '#dc2626' }}>{loginError}</div>}
+          <div className="form-group"><label className="label">Email</label><input className="input-field" type="email" value={loginForm.email} onChange={e => setLoginForm({ ...loginForm, email: e.target.value })} placeholder="vendor@email.com" /></div>
+          <div className="form-group"><label className="label">Temporary password</label><input className="input-field" type="password" value={loginForm.password} onChange={e => setLoginForm({ ...loginForm, password: e.target.value })} placeholder="Min 6 characters" /></div>
+          <button onClick={createLogin} disabled={creating} className="btn-primary">{creating ? 'Creating...' : 'Create login'}</button>
+        </div>
+      )}
     </div>
   )
 }
